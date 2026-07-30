@@ -30,7 +30,7 @@ local Font = Font
 
 local IsStudio = RunService:IsStudio()
 
-local Lucide = IsStudio and require(script.Parent.Parent.Libraries.Lucide) or loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/lucide-roblox-direct/refs/heads/main/source.lua", true), "Lucide")()
+local Lucide = IsStudio and require(script.Parent.Parent.Libraries.Lucide) or loadstring(game:HttpGet("https://gitlab.com/upio/lucide-roblox-direct/-/raw/main/source.lua?ref_type=heads"), "Lucide")()
 local loadstring = IsStudio and require(script.Parent.Parent.Libraries.Loadstring) or loadstring
 local queueonteleport = queueonteleport or queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
 local identifyexecutor = identifyexecutor
