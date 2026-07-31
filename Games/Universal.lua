@@ -6209,7 +6209,7 @@ Run(function() -- Scripts
         Scripts:CreateButton({
             Name = "Cobalt Spy",
             Function = function()
-                loadstring(game:HttpGet("https://github.com/notpoiu/cobalt/releases/latest/download/Cobalt.luau", true))()
+                loadstring(game:HttpGet("https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau"))()
             end
         })
     end)
