@@ -88,12 +88,15 @@ Run(function() -- Combat
 
                     while ProjectileAura.Enabled do
                         if CharacterLib.Alive then
-                            if not Tool or (Tool and Tool.Parent == nil) then
-                                Tool = CharacterLib.Character:FindFirstChildOfClass('Tool') or Plr.Backpack:FindFirstChildOfClass('Tool')
-                            elseif Tool and Tool.Parent == Plr.Backpack and AutoEquipGun.Enabled then
-                                CharacterLib.Humanoid:EquipTool(Tool)
-                                task.wait()
+                            if AutoEquipGun.Enabled then
+                                local Tool = Plr.Backpack:FindFirstChildOfClass('Tool')
+                                if Tool then
+                                    CharacterLib.Humanoid:EquipTool(Tool)
+                                    task.wait()
+                                end
                             end
+                            
+                            local Tool = CharacterLib.Character:FindFirstChildOfClass('Tool')
 
                             if Tool then
                                 local ClosestZombies = GetClosestZombies()
