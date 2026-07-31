@@ -12,42 +12,69 @@ local TweenService: TweenService = GetService("TweenService")
 local UIS: UserInputService = GetService("UserInputService")
 local TextService: TextService = GetService("TextService")
 local MarketplaceService: MarketplaceService = GetService("MarketplaceService")
+local GuiService: GuiService = GetService("GuiService")
 
 local Plr: Player = Players.LocalPlayer
-local Mouse: Mouse = cloneref(Plr:GetMouse())
 local Camera: Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
 local Enum = Enum
-local Color3 = Color3
+local Color3 = table.clone(Color3)
+function Color3.fromRGBT(R, G, B, T)
+	local self = {}
+    self.R = R or 255
+    self.G = G or 255
+    self.B = B or 255
+    self.T = T or 0
+    self.Transparency = self.T
+    self.Color = Color3.fromRGB(self.R, self.G, self.B)
+
+    return self
+end
+Color3.Black = Color3.new()
+Color3.White = Color3.new(1, 1, 1)
 local Instance = Instance
 local TweenInfo = TweenInfo
 local UDim2 = UDim2
 local UDim = UDim
 local math = math
-local string = string
-local table = table
 local task = task
 local Font = Font
+local table = table.clone(table)
+function table.len(Tab)
+	local Len = 0
+	for _ in Tab do
+		Len += 1
+	end
+	return Len
+end
 
 local IsStudio = RunService:IsStudio()
 
-local Lucide = IsStudio and require(script.Parent.Parent.Libraries.Lucide) or loadstring(game:HttpGet("https://gitlab.com/upio/lucide-roblox-direct/-/raw/main/source.lua?ref_type=heads"), "Lucide")()
+local Lucide = IsStudio and require(script.Parent.Parent.Libraries.Lucide) or nil
 local loadstring = IsStudio and require(script.Parent.Parent.Libraries.Loadstring) or loadstring
-local queueonteleport = queueonteleport or queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+local queueonteleport = queueonteleport or queue_on_teleport
 local identifyexecutor = identifyexecutor
 local loadfile = loadfile
 local readfile = readfile
 local isfile = isfile
 local writefile = writefile
-local deletefile = delfile
+local delfile = delfile
 local listfiles = listfiles
-local gethui = gethui or function() return CoreGui and CoreGui:FindFirstChild("RobloxGui") or CoreGui or Plr:FindFirstChildOfClass("PlayerGui") end
+local gethui = gethui
+
+if isfile('TidalWave/Libraries/Lucide.lua') then
+	Lucide = loadstring(readfile('TidalWave/Libraries/Lucide.lua'), 'Lucide')()
+else
+	local Data = game:HttpGet('https://gitlab.com/upio/lucide-roblox-direct/-/raw/main/source.lua?ref_type=heads')
+	writefile('TidalWave/Libraries/Lucide.lua', Data)
+	Lucide = loadstring(Data, 'Lucide')()
+end
 
 if IsStudio then
 	local FileSystem = require(script.Parent.Parent.Libraries.FileSystem)
 	readfile = FileSystem.readfile
 	isfile = FileSystem.isfile
 	writefile = FileSystem.writefile
-	deletefile = FileSystem.delfile
+	delfile = FileSystem.delfile
 	listfiles = FileSystem.listfiles
 	loadfile = function(Path)
         return loadstring(readfile(Path))
@@ -60,34 +87,42 @@ end
 
 local function AddMaid(Obj)
     Obj.Connections = {}
-    function Obj:Clean(Connection: RBXScriptConnection | thread | Instance | (...any) -> (...any) , ...: any)
-        local function Remove()
-            local Index = table.find(Obj.Connections, Connection)
-            if Index then
-                table.remove(Obj.Connections, Index)
-            end
-        end
+	local Metatable = {
+		__index = function(self, i)
+			if i == 'Connected' then
+				return self._Connected()
+			end
+		end
+	}
 
+    function Obj:Clean(Connection: RBXScriptConnection | thread | Instance | (...any) -> (...any) , ...: any)
         local Type = typeof(Connection)
 
         local Disconnect
         local Connected
+		local ConnectionObject = {}
 
         if Type == "Instance" then
-			local DestroyingCon = Connection.Destroying:Once(Remove)
             Disconnect = function()
-				DestroyingCon:Disconnect()
                 Connection:Destroy()
-                Remove()
+                Obj.Connections[Connection] = nil
             end
             Connected = function()
                 return Connection and Connection.Parent ~= nil
             end
+
+			local Con; Con = Connection.AncestryChanged:Connect(function(_, Parent)
+				if Parent == nil then
+					Con:Disconnect()
+					Con = nil
+					Obj.Connections[Connection] = nil
+				end
+			end)
         elseif Type == "function" then
             local Args = {...}
             Disconnect = function()
-                Connection(unpack(Args))
-                Remove()
+                Connection(table.unpack(Args))
+                Obj.Connections[Connection] = nil
             end
             Connected = function()
                 return true
@@ -95,7 +130,7 @@ local function AddMaid(Obj)
         elseif Type == "RBXScriptConnection" then
             Disconnect = function()
                 Connection:Disconnect()
-                Remove()
+                Obj.Connections[Connection] = nil
             end
             Connected = function()
                 return Connection and Connection.Connected
@@ -103,38 +138,30 @@ local function AddMaid(Obj)
         elseif Type == "thread" then
             Disconnect = function()
                 pcall(task.cancel, Connection)
-                Remove()
+                Obj.Connections[Connection] = nil
             end
             Connected = function()
                 return Connection and coroutine.status(Connection) ~= "dead"
             end
         end
 
-        local Tab = {
-            Disconnect = Disconnect,
-            Destroy = Disconnect,
-            Remove = Disconnect,
-        }
+		ConnectionObject.Disconnect = Disconnect
+		ConnectionObject.Destroy = Disconnect
+		ConnectionObject.Remove = Disconnect
+		ConnectionObject.Type = Type
+		ConnectionObject._Connected = Connected
 
-		local Metatable = {
-            __index = function(_, i)
-                if i == 'Connected' then
-                    return Connected()
-                end
-            end
-        }
+        setmetatable(ConnectionObject, Metatable)
 
-        setmetatable(Tab, Metatable)
+        Obj.Connections[Connection] = ConnectionObject
 
-        Obj.Connections[#Obj.Connections + 1] = Tab
-
-        return Tab
+        return ConnectionObject
     end
 
 	function Obj:CleanUp()
-		for _, v in Obj.Connections do
+		for i, v in Obj.Connections do
 			if not v.Connected then
-				v:Disconnect()
+				Obj.Connections[i] = nil
 			end
 		end
 	end
@@ -146,74 +173,109 @@ local function AddMaid(Obj)
     end
 end
 
-local function rgbt(R, G, B, T)
-    local self = {}
-    self.R = R or 255
-    self.G = G or 255
-    self.B = B or 255
-    self.T = T or 0
-    self.Color = Color3.fromRGB(self.R, self.G, self.B)
-    self.Transparency = self.T
+local function AddInstanceTable(Obj)
+	Obj.Instances = {}
+	Obj.InstanceConnections = {}
 
-    return self
+	function Obj:GetInstance(Name)
+		return self.Instances[Name]
+	end
+
+	function Obj:GetInstances()
+		return self.Instances
+	end
+
+	function Obj:RemoveInstance(Name)
+		local Con = self.InstanceConnections[Name]
+		if Con then
+			Con:Disconnect()
+			self.InstanceConnections[Name] = nil
+		end
+		local Object = self.Instances[Name]
+		if Object then
+			Object:Destroy()
+			self.Instances[Name] = nil
+		end
+	end
+
+	function Obj:CreateInstance(Class, Name, Properties)
+		self:RemoveInstance(Name)
+		local Inst = Instance.new(Class)
+		if Properties then
+			local Parent = Properties.Parent
+			Properties.Parent = nil
+			for i, v in Properties do
+				Inst[i] = v
+			end
+			Inst.Parent = Parent
+		end
+
+		local Con; Con = Inst.AncestryChanged:Connect(function(_, NewParent)
+			if NewParent == nil then
+				Con:Disconnect()
+				Inst:Destroy()
+				self.Instances[Name], Con, Inst = nil, nil, nil
+			end
+		end)
+
+		self.Instances[Name], self.InstanceConnections[Name] = Inst, Con
+
+		return Inst
+	end
+
+	function Obj:ClearInstances()
+		for Name in self.Instances do
+			self:RemoveInstance(Name)
+		end
+	end
 end
 
 local BuiltInThemes = {
     TidalWave = {
         BuiltIn = true,
         Main = {
-            Accent = rgbt(18, 124, 230),
-            Icons = rgbt(255, 255, 255),
-            EnabledBar = rgbt(18, 124, 230),
-            DisabledBar = rgbt(0, 75, 133),
+            Accent = Color3.fromRGBT(18, 124, 230),
+            Icons = Color3.fromRGBT(255, 255, 255),
+            EnabledBar = Color3.fromRGBT(18, 124, 230),
+            DisabledBar = Color3.fromRGBT(0, 75, 133),
         },
         Text = {
-            Primary = rgbt(255, 255, 255),
-            Placeholder = rgbt(127, 127, 127),
-            Shadow = rgbt(0, 0, 0),
-            Tooltip = rgbt(255, 255, 255)
+            Primary = Color3.fromRGBT(255, 255, 255),
+            Placeholder = Color3.fromRGBT(127, 127, 127),
+            Shadow = Color3.fromRGBT(0, 0, 0),
+            Tooltip = Color3.fromRGBT(255, 255, 255)
         },
         Background = {
-            Primary = rgbt(25, 25, 25),
-            Secondary = rgbt(18, 18, 18),
-            Button = rgbt(20, 20, 20),
-            ButtonHover = rgbt(40, 40, 40),
-            ButtonPress = rgbt(20, 20, 20),
-            Tooltip = rgbt(0, 0, 0, 0.3),
-            Notification = rgbt(0, 0, 0, 0.2),
+            Primary = Color3.fromRGBT(25, 25, 25),
+            Secondary = Color3.fromRGBT(18, 18, 18),
+            Button = Color3.fromRGBT(20, 20, 20),
+            ButtonHover = Color3.fromRGBT(40, 40, 40),
+            ButtonPress = Color3.fromRGBT(20, 20, 20),
+            Tooltip = Color3.fromRGBT(0, 0, 0, 0.3),
+            Notification = Color3.fromRGBT(0, 0, 0, 0.2),
         },
         Outline = {
-            Primary = rgbt(0, 0, 0),
-            Tooltip = rgbt(0, 0, 0),
-            Notification = rgbt(0, 0, 0),
+            Primary = Color3.fromRGBT(0, 0, 0),
+            Tooltip = Color3.fromRGBT(0, 0, 0),
+            Notification = Color3.fromRGBT(0, 0, 0),
         },
         Slider = {
-            Handle = rgbt(18, 124, 230),
-            HandleHover = rgbt(0, 128, 255),
-            HandlePress = rgbt(18, 124, 230),
-            LeftBar = rgbt(14, 97, 180),
-            RightBar = rgbt(40, 40, 40),
+            Handle = Color3.fromRGBT(18, 124, 230),
+            HandleHover = Color3.fromRGBT(0, 128, 255),
+            HandlePress = Color3.fromRGBT(18, 124, 230),
+            LeftBar = Color3.fromRGBT(14, 97, 180),
+            RightBar = Color3.fromRGBT(40, 40, 40),
         },
         Notification = {
-            ProgressBar = rgbt(255, 255, 255),
-            Info = rgbt(255, 255, 255),
-            Warning = rgbt(255, 75, 0),
-            Error = rgbt(255, 75, 75),
-            ModuleEnabled = rgbt(75, 255, 75),
-            ModuleDisabled = rgbt(255, 75, 75),
+            ProgressBar = Color3.fromRGBT(255, 255, 255),
+            Info = Color3.fromRGBT(255, 255, 255),
+            Warning = Color3.fromRGBT(255, 75, 0),
+            Error = Color3.fromRGBT(255, 75, 75),
+            ModuleEnabled = Color3.fromRGBT(75, 255, 75),
+            ModuleDisabled = Color3.fromRGBT(255, 75, 75),
         },
     }
 }
-
-local function GetTableLength(Tab)
-	local Len = 0
-	for _ in Tab do
-		Len += 1
-	end
-	return Len
-end
-
-local LengthMetatable = {__len = GetTableLength}
 
 local Gui = {
 	Scale = true,
@@ -232,10 +294,11 @@ local Gui = {
     RainbowTable = {},
 	Profiles = {},
     Friends = {},
-	Menus = setmetatable({}, LengthMetatable),
-	Modules = setmetatable({}, LengthMetatable),
-    Buttons = setmetatable({}, LengthMetatable),
-	Categories = setmetatable({}, LengthMetatable),
+	PressedKeys = {},
+	Menus = {},
+	Modules = {},
+    Buttons = {},
+	Categories = {},
 	Fonts = {
 		Regular = {
 			Name = "Gotham",
@@ -257,9 +320,11 @@ local Gui = {
 }
 AddMaid(Gui)
 
+if identifyexecutor then
+	Gui.Executor, Gui.ExecutorVersion = identifyexecutor()
+end
+
 local SearchMatches = {}
-local White = Color3.new(1, 1, 1)
-local Black = Color3.new(0, 0, 0)
 
 local function GetCurrentTheme()
     return Gui.Themes[Gui.Theme]
@@ -275,14 +340,14 @@ local function GetColor(Type)
             CurrentColor = (CurrentColor or CurrentTheme)[v]
             if not CurrentColor then
                 warn(debug.traceback(`Invalid Color: {Type}`))
-                return Black
+                return Color3.White
             end
         end
 
         return CurrentColor.Color, CurrentColor.T
     else
         warn(debug.traceback(`Failed to find theme: {Gui.Theme}`))
-        return Black
+        return Color3.White
     end
 end
 
@@ -290,11 +355,11 @@ local function SetColor(Type, Color, Transparency)
     local CurrentTheme = GetCurrentTheme()
 
     if CurrentTheme and not CurrentTheme.BuiltIn then
-        local First, Second = unpack(Type:split("/"))
+        local First, Second = table.unpack(Type:split("/"))
         if Color.R > 1 or Color.G > 1 or Color.B > 1 then
             Color = {R = Color.R / 255, G = Color.G / 255, B = Color.B / 255}
         end
-        CurrentTheme[First][Second] = rgbt(Color.R * 255, Color.G * 255, Color.B * 255, Transparency or CurrentTheme[First][Second].Transparency or 0)
+        CurrentTheme[First][Second] = Color3.fromRGBT(Color.R * 255, Color.G * 255, Color.B * 255, Transparency or CurrentTheme[First][Second].Transparency or 0)
     end
 end
 
@@ -335,7 +400,7 @@ local function RemoveRGB(Tab)
     for i, v in Gui.RainbowTable do
         if v == Tab then
             table.remove(Gui.RainbowTable, i)
-            if #Gui.RainbowTable == 0 then
+            if table.len(Gui.RainbowTable) == 0 then
                 Gui.RainbowRunning:Disconnect()
                 Gui.RainbowRunning = 0
             end
@@ -381,12 +446,8 @@ ScreenGui.IgnoreGuiInset = true
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 69420
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-ScreenGui.Parent = gethui()
+ScreenGui.Parent = gethui and gethui() or CoreGui and CoreGui:FindFirstChild("RobloxGui") or CoreGui or Plr:FindFirstChildOfClass("PlayerGui")
 Gui.Gui = ScreenGui
-
-if identifyexecutor then
-	Gui.Executor, Gui.ExecutorVersion = identifyexecutor()
-end
 
 local ScaledGui = Instance.new("Frame")
 ScaledGui.Name = "ScaledGui"
@@ -476,6 +537,7 @@ TopBar.Size = UDim2.fromOffset(0, 44)
 TopBar.AnchorPoint = Vector2.new(0.5, 0)
 TopBar.Visible = false
 TopBar.Parent = GuiFolder
+AddCorner(TopBar, UDim.new(0, 11))
 
 local TopBarUIListLayout = Instance.new("UIListLayout")
 TopBarUIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -484,7 +546,6 @@ TopBarUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TopBarUIListLayout.FillDirection = Enum.FillDirection.Horizontal
 TopBarUIListLayout.Padding = UDim.new(0, 8)
 TopBarUIListLayout.Parent = TopBar
-AddCorner(TopBar, UDim.new(0, 11))
 
 local Cursor = Instance.new("ImageLabel")
 Cursor.Name = "Cursor"
@@ -506,11 +567,9 @@ end))
 
 Gui:Clean(UIScale:GetPropertyChangedSignal("Scale"):Connect(function()
 	ScaledGui.Size = UDim2.fromScale(1 / UIScale.Scale, 1 / UIScale.Scale)
-	for i, v in ScaledGui:GetDescendants() do
-		if v:IsA("GuiObject") and v.Visible then
-			v.Visible = false
-			v.Visible = true
-		end
+	for _, v in ScaledGui:QueryDescendants('GuiObject[Visible = true]') do
+		v.Visible = false
+		v.Visible = true
 	end
 end))
 
@@ -526,8 +585,6 @@ local function GetTextSize(Text, TextSize, Font, Size)
 	GetTextBoundsParams.RichText = Text:match("<[^<>]->") ~= nil
     return TextService:GetTextBoundsAsync(GetTextBoundsParams)
 end
-
-local SelectedTopBar
 
 local function CreateTopBarButton(Properties)
 	local Table = {}
@@ -560,7 +617,7 @@ local function CreateTopBarButton(Properties)
 					if v.BackgroundColor3 ~= ButtonHover then
 						TweenService:Create(Button, Info, {BackgroundColor3 = ButtonHover}):Play()
 					end
-					if typeof(Properties.Function) == "function" then
+					if Properties.Function then
 						Properties.Function(...)
 					end
 				else
@@ -571,7 +628,7 @@ local function CreateTopBarButton(Properties)
 				end
 			end
 		end
-        SelectedTopBar = Button
+        Gui.SelectedTopBar = Button
 	end
 
 	Button.MouseButton1Click:Connect(Table.Select)
@@ -617,7 +674,7 @@ local function AddTooltip(Obj, Text)
 end
 
 local function LoopClean(Tab)
-	for i, v in Tab do
+	for _, v in Tab do
         local Type = typeof(v)
 		if Type == "table" then
 			LoopClean(v)
@@ -626,8 +683,8 @@ local function LoopClean(Tab)
         elseif Type == 'RBXScriptConnection' then
             v:Disconnect()
 		end
-		Tab[i] = nil
 	end
+	table.clear(Tab)
 end
 
 function Gui:Shutdown()
@@ -637,14 +694,13 @@ function Gui:Shutdown()
 			v:Toggle(true)
 		end
 	end
-	for _, v in Gui.Connections do
-		v:Disconnect()
-	end
-	shared.TidalWave.Libraries.CharacterLib:Shutdown()
+	Gui:DisconnectAll()
+	Gui.Libraries.CharacterLib:Shutdown()
 	ScreenGui:Destroy()
 	LoopClean(Gui)
 	shared.TidalWave = nil
     shared.TidalWaveVersion = nil
+	shared.TidalWaveDev = nil
 end
 
 local function RemoveTags(Str)
@@ -659,7 +715,7 @@ Run(function()
 	local Notifications = {}
 	local Info = TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
     
-	local function Tween(Obj, Info, Goal, Tab)
+	local function Tween(Obj, Goal, Tab)
 		Tab = Tab or NotificationTweens.Tweens
 		if Tab[Obj] then
 			Tab[Obj]:Cancel()
@@ -766,11 +822,11 @@ Run(function()
 
 			local Duration = Properties.Duration or 2
 
-			Tween(Frame, Info, {AnchorPoint = Right and Vector2.xAxis or Vector2.zero})
+			Tween(Frame, {AnchorPoint = Right and Vector2.xAxis or Vector2.zero})
 			TweenService:Create(Progress, TweenInfo.new(Duration), {Size = UDim2.fromOffset(0, 2)}):Play()
 
 			task.delay(Duration, function()
-				Tween(Frame, Info, {AnchorPoint = Right and Vector2.zero or Vector2.xAxis})
+				Tween(Frame, {AnchorPoint = Right and Vector2.zero or Vector2.xAxis})
 				task.wait(0.25)
 
 				table.remove(Notifications, table.find(Notifications, Frame))
@@ -779,7 +835,7 @@ Run(function()
 				for i, v in Notifications do
 					YOffset = (29 + (78 * i))
                     local Goal = {Position = UDim2.new(Right and 1 or 0, Right and 5 or -5, Bottom and 1 or 0, Bottom and FillDirectionUp and -YOffset or YOffset)}
-					Tween(v, Info, Goal, NotificationTweens.Tweens2)
+					Tween(v, Goal, NotificationTweens.Tweens2)
 				end
 			end)
 		end)
@@ -799,7 +855,54 @@ local function NotifyPoopSploit(FunctionName: string)
 	})
 end
 
-local Templates; Templates = {
+local Components
+Components = {
+	Delete = function(Properties)
+		local DeleteKeybind = Instance.new("TextButton")
+        DeleteKeybind.Name = "Delete"
+        DeleteKeybind.BackgroundColor3 = GetColor('Background/Button')
+        DeleteKeybind.Text = ""
+        DeleteKeybind.BorderSizePixel = 0
+        DeleteKeybind.Size = UDim2.fromOffset(40, 40)
+        DeleteKeybind.Position = UDim2.new(1, -40, 0, 0)
+        DeleteKeybind.AutoButtonColor = false
+        DeleteKeybind.Parent = Properties.Parent
+        AddCorner(DeleteKeybind, UDim.new(0, 7))
+        AddHighlight(DeleteKeybind)
+
+        local DeleteKeybindImage = Instance.new("ImageLabel")
+        DeleteKeybindImage.Name = "Image"
+        DeleteKeybindImage.BackgroundTransparency = 1
+        DeleteKeybindImage.Size = UDim2.fromOffset(24, 24)
+        DeleteKeybindImage.Position = UDim2.fromOffset(8, 8)
+        SetIcon(DeleteKeybindImage, "x")
+        DeleteKeybindImage.Parent = DeleteKeybind
+
+		DeleteKeybind.MouseButton1Click:Connect(Properties.Function)
+	end,
+	Reset = function(Properties)
+		local ResetButton = Instance.new("TextButton")
+		ResetButton.Name = "Reset"
+		ResetButton.BackgroundColor3 = GetColor("Background/Button")
+		ResetButton.Text = ""
+		ResetButton.BorderSizePixel = 0
+		ResetButton.Size = UDim2.fromOffset(40, 40)
+		ResetButton.Position = UDim2.new(1, -40, 0, 0)
+		ResetButton.AutoButtonColor = false
+		ResetButton.Parent = Properties.Parent
+		AddCorner(ResetButton, UDim.new(0, 7))
+		AddHighlight(ResetButton)
+
+		local ResetButtonImage = Instance.new("ImageLabel")
+		ResetButtonImage.Name = "Image"
+		ResetButtonImage.BackgroundTransparency = 1
+		ResetButtonImage.Size = UDim2.fromOffset(24, 24)
+		ResetButtonImage.Position = UDim2.fromOffset(8, 8)
+		SetIcon(ResetButtonImage, "rotate-cw")
+		ResetButtonImage.Parent = ResetButton
+
+		ResetButton.MouseButton1Click:Connect(Properties.Function)
+	end,
 	Button = function(Properties)
 		local Button = {
 			Visible = if Properties.Visible ~= nil then Properties.Visible else true,
@@ -822,9 +925,7 @@ local Templates; Templates = {
 		AddTooltip(TextButton, Properties.Info or Properties.Tooltip)
 		AddHighlight(TextButton)
 
-		local f = Properties.Function or function() end
-
-		TextButton.MouseButton1Click:Connect(f)
+		TextButton.MouseButton1Click:Connect(Properties.Function)
 
 		Button.Toggle = Properties.Function
 		Button.Object = TextButton
@@ -881,32 +982,11 @@ local Templates; Templates = {
         AddHighlight(BindButton, GetColor('Background/Secondary'))
         AddTooltip(BindButton, "Click to bind")
 
-        local DeleteKeybind = Instance.new("TextButton")
-        DeleteKeybind.Name = "Delete"
-        DeleteKeybind.BackgroundColor3 = GetColor('Background/Button')
-        DeleteKeybind.Text = ""
-        DeleteKeybind.BorderSizePixel = 0
-        DeleteKeybind.Size = UDim2.fromOffset(40, 40)
-        DeleteKeybind.Position = UDim2.new(1, -40, 0, 0)
-        DeleteKeybind.AutoButtonColor = false
-        DeleteKeybind.Parent = MainFrame
-        AddCorner(DeleteKeybind, UDim.new(0, 7))
-        AddHighlight(DeleteKeybind)
-        AddTooltip(DeleteKeybind, "Click to delete keybind")
-
-        local DeleteKeybindImage = Instance.new("ImageLabel")
-        DeleteKeybindImage.Name = "Image"
-        DeleteKeybindImage.BackgroundTransparency = 1
-        DeleteKeybindImage.Size = UDim2.fromOffset(24, 24)
-        DeleteKeybindImage.Position = UDim2.fromOffset(8, 8)
-        SetIcon(DeleteKeybindImage, "x")
-        DeleteKeybindImage.Parent = DeleteKeybind
-
         local EnabledBar
 
         if Properties.UseHold then
             local Hold = Instance.new("TextButton")
-            Hold.Name = "ToggleOnRelease"
+            Hold.Name = "Hold"
             Hold.BackgroundColor3 = GetColor('Background/Secondary')
             Hold.BorderSizePixel = 0
             Hold.Size = UDim2.fromOffset(140, 30)
@@ -944,9 +1024,8 @@ local Templates; Templates = {
 		end)
 
 		function Keybind:SetKeybind(Bind)
-            Bind = Bind or 'None'
-			self.Keybind = Bind
-			BindButton.Text = Bind
+			self.Keybind = Bind or 'None'
+			BindButton.Text = self.Keybind
             if Properties.Function then
                 Properties.Function(self.Keybind)
             end
@@ -959,11 +1038,40 @@ local Templates; Templates = {
             end
         end
 
+		local UserInputTypes = {
+			["MouseButton1"] = true,
+			["MouseButton2"] = true,
+			["MouseButton3"] = true,
+		}
+
+		local SecondaryKeybind
+
         function Keybind:IsPressed()
-            local KeyCode = Keybind.Keybind and Enum.KeyCode:FromName(Keybind.Keybind)
-            if KeyCode and UIS:IsKeyDown(KeyCode) then return true end
-            return false
+			if SecondaryKeybind and SecondaryKeybind:IsPressed() then return true end
+			if self.Keybind == 'None' then return false end
+			for _, v in self.Keybind:split('+') do
+				local Key = UserInputTypes[v] and Enum.UserInputType[v].Name or Enum.KeyCode[v].Name
+				if not Gui.PressedKeys[Key] then return false end
+			end
+			return true
         end
+
+		function Keybind:Check(Input)
+			if SecondaryKeybind and SecondaryKeybind:Check(Input) then return true end
+			if self.Keybind == 'None' then return false end
+			if Input.KeyCode == Enum.KeyCode.Unknown and not UserInputTypes[Input.UserInputType.Name] then return false end
+			local Split = self.Keybind:split('+')
+			local Key = Input.KeyCode == Enum.KeyCode.Unknown and Input.UserInputType.Name or Input.KeyCode.Name
+			if Key == Split[1] then
+				Split[1] = nil
+				for _, v in Split do
+					if not Gui.PressedKeys[v] then return false end
+				end
+				return true
+			end
+
+			return false
+		end
 
         local Name = Properties.Name:gsub(' ', '')
 
@@ -983,13 +1091,23 @@ local Templates; Templates = {
             end
 		end
 
-		DeleteKeybind.MouseButton1Click:Connect(function()
-            Keybind:SetKeybind('None')
-        end)
+		Components.Delete({
+			Parent = MainFrame,
+			Function = function()
+				Keybind:SetKeybind('None')
+			end
+		})
 
 		Keybind.Object = MainFrame
-
 		Properties.Module.Keybinds[Name] = Keybind
+
+		if Properties.Secondary or Properties.SecondaryKeybind then
+			Properties.Text = `{Properties.Name} Keybind 2`
+			Properties.Name ..= '2'
+			Properties.Secondary = nil
+			Properties.Keybind = Properties.SecondaryKeybind
+			SecondaryKeybind = Components.Keybind(Properties)
+		end
 
 		return Keybind
     end,
@@ -1029,25 +1147,14 @@ local Templates; Templates = {
 		EnabledBar.BorderSizePixel = 0
 		EnabledBar.Parent = Button
 
-		local ResetButton = Instance.new("TextButton")
-		ResetButton.Name = "Reset"
-		ResetButton.BackgroundColor3 = GetColor("Background/Button")
-		ResetButton.Text = ""
-		ResetButton.BorderSizePixel = 0
-		ResetButton.Size = UDim2.fromOffset(40, 40)
-		ResetButton.Position = UDim2.new(1, -40, 0, 0)
-		ResetButton.AutoButtonColor = false
-		ResetButton.Parent = Frame
-		AddCorner(ResetButton, UDim.new(0, 7))
-		AddHighlight(ResetButton)
-
-		local ResetButtonImage = Instance.new("ImageLabel")
-		ResetButtonImage.Name = "Image"
-		ResetButtonImage.BackgroundTransparency = 1
-		ResetButtonImage.Size = UDim2.fromOffset(24, 24)
-		ResetButtonImage.Position = UDim2.fromOffset(8, 8)
-		SetIcon(ResetButtonImage, "rotate-cw")
-		ResetButtonImage.Parent = ResetButton
+		Components.Reset({
+			Parent = Frame,
+			Function = function()
+				if Toggle.Enabled ~= (Properties.Default or false) then
+					Toggle:Toggle()
+				end
+			end
+		})
 
 		function Toggle:Toggle()
 			self.Enabled = not self.Enabled
@@ -1088,11 +1195,6 @@ local Templates; Templates = {
 		Button.MouseButton1Click:Connect(function()
 			Toggle:Toggle()
 		end)
-		ResetButton.MouseButton1Click:Connect(function()
-			if Toggle.Enabled ~= (Properties.Default or false) then
-				Toggle:Toggle()
-			end
-		end)
 
 		Toggle.Object = Frame
 
@@ -1103,8 +1205,10 @@ local Templates; Templates = {
 	TextBox = function(Properties)
 		local TextBox = {
 			Visible = if Properties.Visible ~= nil then Properties.Visible else true,
+			Text = Properties.Text or '',
             Type = "TextBox"
 		}
+		local Name = Properties.Name:gsub(' ', '')
 
 		local Background = Instance.new("Frame")
 		Background.Name = "Background"
@@ -1131,43 +1235,45 @@ local Templates; Templates = {
 		TextBoxObject.Size = UDim2.fromOffset(380, 30)
 		TextBoxObject.Position = UDim2.fromOffset(215, 5)
 		TextBoxObject.ClearTextOnFocus = false
-		TextBoxObject.PlaceholderText = Properties.PlaceholderText or ""
+		TextBoxObject.PlaceholderText = Properties.PlaceholderText or Properties.Placeholder or ''
 		TextBoxObject.TextColor3 = GetColor("Text/Primary")
         TextBoxObject.PlaceholderColor3 = GetColor("Text/Placeholder")
 		TextBoxObject.FontFace = GetFont('Regular')
 		TextBoxObject.TextSize = 24
 		TextBoxObject.Text = Properties.Text or ""
+		TextBoxObject.ClipsDescendants = true
 		TextBoxObject.Parent = Background
 		AddCorner(TextBoxObject, UDim.new(0, 7))
 
-		TextBox.Object = Background
+		TextBoxObject.FocusLost:Connect(function()
+			TextBox.Text = TextBoxObject.Text
+			if Properties.Function then
+				Properties.Function(TextBox.Text, false)
+			end
+		end)
 
 		function TextBox:SetVisible(Visible)
 			TextBox.Visible = Visible
 			Background.Visible = Visible
 		end
 
-        local Name = Properties.Name:gsub(' ', '')
-
         function TextBox:Save(Tab)
-            Tab[Name] = TextBoxObject.Text
+            Tab[Name] = {
+				Text = self.Text
+			}
         end
 
-        function TextBox:Load(Text)
-            if typeof(Text) == 'string' then
-                TextBoxObject.Text = Text
-                if Properties.Function then
-                    Properties.Function(TextBoxObject.Text, true)
-                end
-            end
-        end
-
-		TextBoxObject.FocusLost:Connect(function()
-			if Properties.Function then
-				Properties.Function(TextBoxObject.Text)
+        function TextBox:Load(Tab)
+			if self.Text ~= Tab.Text then
+				self.Text = Tab.Text
+				TextBoxObject.Text = self.Text
+				if Properties.Function then
+					Properties.Function(self.Text, true)
+				end
 			end
-		end)
+        end
 
+		TextBox.Object = Background
 		Properties.Module.Options[Name] = TextBox
 
 		return TextBox
@@ -1222,26 +1328,6 @@ local Templates; Templates = {
 		TextLabel.Text = ` {Properties.Name}`
 		TextLabel.TextXAlignment = Enum.TextXAlignment.Left
 		TextLabel.Parent = Background
-
-		local ResetButton = Instance.new("TextButton")
-		ResetButton.Name = "Reset"
-		ResetButton.BackgroundColor3 = GetColor("Background/Button")
-		ResetButton.Text = ""
-		ResetButton.BorderSizePixel = 0
-		ResetButton.Size = UDim2.fromOffset(40, 40)
-		ResetButton.Position = UDim2.new(1, -40, 0, 0)
-		ResetButton.AutoButtonColor = false
-		ResetButton.Parent = Frame
-		AddCorner(ResetButton, UDim.new(0, 7))
-		AddHighlight(ResetButton)
-
-		local ResetButtonImage = Instance.new("ImageLabel")
-		ResetButtonImage.Name = "Image"
-		ResetButtonImage.BackgroundTransparency = 1
-		ResetButtonImage.Size = UDim2.fromOffset(24, 24)
-		ResetButtonImage.Position = UDim2.fromOffset(8, 8)
-		SetIcon(ResetButtonImage, "rotate-cw")
-		ResetButtonImage.Parent = ResetButton
 
 		local SliderFrame = Instance.new("TextButton")
 		SliderFrame.Name = "SliderFrame"
@@ -1387,17 +1473,24 @@ local Templates; Templates = {
 			InputNumber(Input.Text)
 		end)
 
-		ResetButton.MouseButton1Click:Connect(function()
-			InputNumber(Properties.Default)
-		end)
+		Components.Reset({
+			Parent = Frame,
+			Function = function()
+				InputNumber(Properties.Default)
+			end
+		})
+
+		local Name = Properties.Name:gsub(' ', '')
 
 		function Slider:Save(Tab)
-			Tab[Properties.Name:gsub(" ", "")] = Slider.Value
+			Tab[Name] = {
+				Value = self.Value
+			}
 		end
 
-		function Slider:Load(Value)
-			if Slider.Value ~= Value then
-				InputNumber(Value)
+		function Slider:Load(Tab)
+			if Slider.Value ~= Tab.Value then
+				InputNumber(Tab.Value)
 			end
 		end
 
@@ -1408,7 +1501,7 @@ local Templates; Templates = {
 
 		Slider.Object = Frame
 
-		Properties.Module.Options[Properties.Name:gsub(" ", "")] = Slider
+		Properties.Module.Options[Name] = Slider
 
 		return Slider
 	end,
@@ -1454,7 +1547,6 @@ local Templates; Templates = {
 		TopBar.Parent = Background
 
 		local TopBarLabel = Instance.new("TextLabel")
-		TopBarLabel.Name = "NameLabel"
 		TopBarLabel.Size = UDim2.new(1, 0, 0, 30)
 		TopBarLabel.Position = UDim2.fromOffset(0, 5)
 		TopBarLabel.BackgroundColor3 = GetColor('Background/Secondary')
@@ -1488,26 +1580,6 @@ local Templates; Templates = {
 		ArrowImage.BackgroundTransparency = 1
 		SetIcon(ArrowImage, "chevron-down")
 		ArrowImage.Parent = Arrow
-
-		local ResetButton = Instance.new("TextButton")
-		ResetButton.Name = "Reset"
-		ResetButton.BackgroundColor3 = GetColor('Background/Button')
-		ResetButton.Text = ""
-		ResetButton.BorderSizePixel = 0
-		ResetButton.Size = UDim2.fromOffset(40, 40)
-		ResetButton.Position = UDim2.new(1, -40, 0, 0)
-		ResetButton.AutoButtonColor = false
-		ResetButton.Parent = Frame
-		AddCorner(ResetButton, UDim.new(0, 7))
-		AddHighlight(ResetButton)
-
-		local ResetButtonImage = Instance.new("ImageLabel")
-		ResetButtonImage.Name = "Image"
-		ResetButtonImage.BackgroundTransparency = 1
-		ResetButtonImage.Size = UDim2.fromOffset(24, 24)
-		ResetButtonImage.Position = UDim2.fromOffset(8, 8)
-		SetIcon(ResetButtonImage, "rotate-cw")
-		ResetButtonImage.Parent = ResetButton
 
 		local ScrollingFrame = Instance.new("ScrollingFrame")
 		ScrollingFrame.Size = UDim2.fromScale(1, 0)
@@ -1616,13 +1688,17 @@ local Templates; Templates = {
 			ArrowTween:Play()
 		end
 
+		local Name = Properties.Name:gsub(' ', '')
+
 		function Dropdown:Save(Tab)
-			Tab[Properties.Name:gsub(" ", "")] = Dropdown.Value
+			Tab[Name] = {
+				Value = self.Value
+			}
 		end
 
-		function Dropdown:Load(Value)
-			if Dropdown.Value ~= Value then
-				Dropdown:SetValue(Value)
+		function Dropdown:Load(Tab)
+			if Dropdown.Value ~= Tab.Value then
+				Dropdown:SetValue(Tab.Value)
 			end
 		end
 
@@ -1636,22 +1712,25 @@ local Templates; Templates = {
 		TopBar.MouseButton1Click:Connect(Dropdown.Expand)
 		TopBar.MouseButton2Click:Connect(Dropdown.Expand)
 
-		ResetButton.MouseButton1Click:Connect(function()
-			if Dropdown.Value ~= (Properties.List[1] or "None") then
-				Dropdown:SetValue(Properties.List[1] or "None")
+		Components.Reset({
+			Parent = Frame,
+			Function = function()
+				local Val = Properties.List[1] or "None"
+				if Dropdown.Value ~= Val then
+					Dropdown:SetValue(Val)
+				end
 			end
-		end)
+		})
 
 		Dropdown.Object = Frame
-
-		Properties.Module.Options[Properties.Name:gsub(" ", "")] = Dropdown
+		Properties.Module.Options[Name] = Dropdown
 
 		return Dropdown
 	end,
 	TextList = function(Properties)
 		local TextList = {
-			List = setmetatable(Properties.List or Properties.Default or {}, LengthMetatable),
-            Enabled = setmetatable(Properties.Enabled or Properties.List or Properties.Default or {}, LengthMetatable),
+			List = Properties.List or Properties.Default or {},
+            Enabled = Properties.Enabled or Properties.List or Properties.Default or {},
 			Visible = if Properties.Visible ~= nil then Properties.Visible else true,
             Type = "TextList"
 		}
@@ -1692,7 +1771,6 @@ local Templates; Templates = {
 		TopBar.Parent = Background
 
 		local Selected = Instance.new("TextLabel")
-		Selected.Name = "Selected"
 		Selected.Size = UDim2.new(1, 0, 0, 30)
 		Selected.Position = UDim2.fromOffset(0, 5)
 		Selected.BackgroundColor3 = GetColor('Background/Secondary')
@@ -1703,16 +1781,10 @@ local Templates; Templates = {
 		Selected.FontFace = GetFont('Regular')
 		Selected.TextXAlignment = Enum.TextXAlignment.Left
 		Selected.Parent = TopBar
-		AddCorner(Selected, UDim.new(0, 7))
 
-		local Filler = Instance.new("Frame")
-		Filler.Name = "Filler"
-		Filler.BackgroundColor3 = GetColor('Background/Secondary')
-		Filler.Size = UDim2.new(1, 0, 0, 5)
-		Filler.Position = UDim2.new(0, 0, 1, -7)
-		Filler.BorderSizePixel = 0
-		Filler.Visible = false
-		Filler.Parent = TopBar
+		local UICorner = Instance.new('UICorner')
+		UICorner.CornerRadius = UDim.new(0, 7)
+		UICorner.Parent = Selected
 
 		local Arrow = Instance.new("TextButton")
 		Arrow.Name = "Arrow"
@@ -1732,26 +1804,6 @@ local Templates; Templates = {
 		SetIcon(ArrowImage, "chevron-down")
 		ArrowImage.Parent = Arrow
 
-		local DeleteAll = Instance.new("TextButton")
-		DeleteAll.Name = "DeleteAll"
-		DeleteAll.BackgroundColor3 = GetColor('Background/Button')
-		DeleteAll.Text = ""
-		DeleteAll.BorderSizePixel = 0
-		DeleteAll.Size = UDim2.fromOffset(40, 40)
-		DeleteAll.Position = UDim2.new(1, -40, 0, 0)
-		DeleteAll.AutoButtonColor = false
-		DeleteAll.Parent = Frame
-		AddCorner(DeleteAll, UDim.new(0, 7))
-		AddHighlight(DeleteAll)
-
-		local DeleteAllImage = Instance.new("ImageLabel")
-		DeleteAllImage.Name = "Image"
-		DeleteAllImage.BackgroundTransparency = 1
-		DeleteAllImage.Size = UDim2.fromOffset(24, 24)
-		DeleteAllImage.Position = UDim2.fromOffset(8, 8)
-		SetIcon(DeleteAllImage, "x")
-		DeleteAllImage.Parent = DeleteAll
-
 		local ScrollingFrame = Instance.new("ScrollingFrame")
 		ScrollingFrame.Size = UDim2.fromScale(1, 0)
 		ScrollingFrame.Position = UDim2.fromScale(0, 1)
@@ -1763,7 +1815,12 @@ local Templates; Templates = {
 		ScrollingFrame.Visible = false
 		ScrollingFrame.ZIndex = 2
 		ScrollingFrame.Parent = Selected
-		AddCorner(ScrollingFrame, UDim.new(0, 7))
+		
+		local ScrollingFrameUICorner = Instance.new('UICorner')
+		ScrollingFrameUICorner.CornerRadius = UDim.new(0, 0)
+        ScrollingFrameUICorner.BottomLeftRadius = UDim.new(0, 7)
+        ScrollingFrameUICorner.BottomRightRadius = UDim.new(0, 7)
+		ScrollingFrameUICorner.Parent = ScrollingFrame
 
 		local Padding = Instance.new("UIPadding")
 		Padding.PaddingTop = UDim.new(0, 10)
@@ -1945,23 +2002,17 @@ local Templates; Templates = {
 				Button:Destroy()
 			end)
 
-			local LastClick
-
 			Button.MouseButton1Click:Connect(function()
-				if LastClick and os.clock() - LastClick < 0.5 then
-					Select()
-					LastClick = nil
+				Enabled = not Enabled
+				TweenEnabledBar(EnabledBar, Enabled)
+				if Enabled then
+					TextList:Add(Properties.Name)
 				else
-                    LastClick = os.clock()
-                    Enabled = not Enabled
-                    TweenEnabledBar(EnabledBar, Enabled)
-                    if Enabled then
-                        TextList:Add(Properties.Name)
-                    else
-                        TextList:Remove(Properties.Name)
-                    end
+					TextList:Remove(Properties.Name)
 				end
 			end)
+
+			Button.MouseButton2Click:Connect(Select)
 
 			table.insert(CreatedButtons, Button)
 		end
@@ -2019,21 +2070,18 @@ local Templates; Templates = {
 					end
 				end
 				ScrollingFrame.Visible = true
-				Filler.Visible = true
+				UICorner.CornerRadius = UDim.new(0, 0)
+				UICorner.TopLeftRadius = UDim.new(0, 7)
+				UICorner.TopRightRadius = UDim.new(0, 7)
 			else
 				Tween.Completed:Once(function(State)
 					if State == Enum.PlaybackState.Completed then
+						UICorner.CornerRadius = UDim.new(0, 7)
 						ScrollingFrame.Visible = false
-						for i, v in CreatedButtons do
+						for _, v in CreatedButtons do
 							v:Destroy()
 						end
 						table.clear(CreatedButtons)
-					end
-				end)
-				Con = ScrollingFrame:GetPropertyChangedSignal("Size"):Connect(function()
-					if ScrollingFrame.Size.Y.Offset <= 0 then
-						Filler.Visible = false
-						Con:Disconnect()
 					end
 				end)
 			end
@@ -2041,17 +2089,22 @@ local Templates; Templates = {
 			ArrowTween:Play()
 		end
 
+		local Name = Properties.Name:gsub(' ', '')
+
 		function TextList:Save(Tab)
-			Tab[Properties.Name:gsub(" ", "")] = {Enabled = TextList.Enabled, List = TextList.List}
+			Tab[Name] = {
+				Enabled = TextList.Enabled,
+				List = TextList.List
+			}
 		end
 
 		function TextList:Load(Tab)
-            for i, v in TextList.Enabled do
+            for _, v in TextList.Enabled do
                 Remove(v)
             end
             TextList.List = Tab.List
             TextList.Enabled = Tab.Enabled
-			for i, v in TextList.Enabled do
+			for _, v in TextList.Enabled do
                 Add(v)
 			end
             if Properties.Function then
@@ -2069,348 +2122,29 @@ local Templates; Templates = {
 		TopBar.MouseButton1Click:Connect(TextList.Expand)
 		TopBar.MouseButton2Click:Connect(TextList.Expand)
 
-		DeleteAll.MouseButton1Click:Connect(function()
-			for _, v in CreatedButtons do
-				v:Destroy()
+		Components.Delete({
+			Parent = Frame,
+			Function = function()
+				for _, v in CreatedButtons do
+					v:Destroy()
+				end
+				table.clear(CreatedButtons)
+				table.clear(TextList.List)
+				table.clear(TextList.Enabled)
+				if Properties.Function then
+					Properties.Function(TextList.Enabled)
+				end
 			end
-			table.clear(CreatedButtons)
-			table.clear(TextList.List)
-            table.clear(TextList.Enabled)
-			if Properties.Function then
-				Properties.Function(TextList.Enabled)
-			end
-		end)
+		})
 
 		TextList.Object = Frame
 
-		Properties.Module.Options[Properties.Name:gsub(" ", "")] = TextList
+		Properties.Module.Options[Name] = TextList
 
 		return TextList
 	end,
-	--[[ColorPicker = function(Properties)
-		local ColorPicker = {
-			Color = Properties.Default or Properties.Color or Color3.fromRGB(255, 255, 255),
-            Transparency = Properties.Transparency or 0,
-			Visible = if Properties.Visible ~= nil then Properties.Visible else true,
-            Type = "ColorPicker"
-		}
-
-		local Background = Instance.new("Frame")
-		Background.Name = `{Properties.Module.Object.Name}{Properties.Name}ColorPicker`
-		Background.Size = UDim2.fromOffset(600, 200)
-		Background.BackgroundColor3 = GetColor('Background/Button')
-		Background.BorderSizePixel = 0
-		Background.LayoutOrder = GetTableLength(Properties.Module.Options)
-		Background.Parent = Properties.Parent
-		AddCorner(Background, UDim.new(0, 7))
-
-		local ColorBackground = Instance.new("ImageButton")
-		ColorBackground.Name = "ColorBackground"
-		ColorBackground.BackgroundTransparency = 1
-		ColorBackground.Image = "rbxassetid://1072518406"
-		ColorBackground.Size = UDim2.fromOffset(200, 180)
-		ColorBackground.Position = UDim2.fromOffset(354, 10)
-		ColorBackground.ClipsDescendants = true
-		ColorBackground.Parent = Background
-
-		local DragDetector = Instance.new("UIDragDetector")
-		DragDetector.CursorIcon = "rbxasset://textures/Cursors/KeyboardMouse/ArrowFarCursor.png"
-		DragDetector.ActivatedCursorIcon = "rbxasset://textures/Cursors/KeyboardMouse/ArrowFarCursor.png"
-		DragDetector.DragStyle = Enum.UIDragDetectorDragStyle.Scriptable
-		DragDetector.ResponseStyle = Enum.UIDragDetectorResponseStyle.Offset
-		DragDetector.Parent = ColorBackground
-
-		local ColorStrip = Instance.new("ImageButton")
-		ColorStrip.Name = "ColorStrip"
-		ColorStrip.BackgroundTransparency = 1
-		ColorStrip.Image = "rbxassetid://1072518502"
-		ColorStrip.Size = UDim2.fromOffset(12, 180)
-		ColorStrip.Position = UDim2.new(1, -36, 0, 10)
-		ColorStrip.Parent = Background
-
-		local DragDetector2 = Instance.new("UIDragDetector")
-		DragDetector2.CursorIcon = "rbxasset://textures/Cursors/KeyboardMouse/ArrowFarCursor.png"
-		DragDetector2.ActivatedCursorIcon = "rbxasset://textures/Cursors/KeyboardMouse/ArrowFarCursor.png"
-		DragDetector2.DragStyle = Enum.UIDragDetectorDragStyle.Scriptable
-		DragDetector2.DragAxis = Vector2.new(0, 1)
-		DragDetector2.ResponseStyle = Enum.UIDragDetectorResponseStyle.Offset
-		DragDetector2.Parent = ColorStrip
-
-		local Plus = Instance.new("Frame")
-		Plus.Name = "Plus"
-		Plus.BackgroundTransparency = 1
-		Plus.Size = UDim2.fromOffset(24, 24)
-		Plus.AnchorPoint = Vector2.new(0.5, 0.5)
-		Plus.Parent = ColorBackground
-
-		local Frame1 = Instance.new("Frame")
-		Frame1.Name = "Frame1"
-		Frame1.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		Frame1.Size = UDim2.fromOffset(24, 2)
-		Frame1.Position = UDim2.fromOffset(0, 11)
-		Frame1.BorderSizePixel = 0
-		Frame1.Parent  = Plus
-
-		local Frame2 = Instance.new("Frame")
-		Frame2.Name = "Frame1"
-		Frame2.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		Frame2.Size = UDim2.fromOffset(2, 24)
-		Frame2.Position = UDim2.fromOffset(11, 0)
-		Frame2.BorderSizePixel = 0
-		Frame2.Parent  = Plus
-
-		local Arrow = Instance.new("ImageLabel")
-		Arrow.Name = "Arrow"
-		Arrow.BackgroundTransparency = 1
-		Arrow.Size = UDim2.fromOffset(24, 24)
-		Arrow.AnchorPoint = Vector2.new(0, 0.5)
-		Arrow.Position = UDim2.fromScale(1, 0)
-		SetIcon(Arrow, "chevron-left")
-		Arrow.Parent = ColorStrip
-
-		local ColorDisplay = Instance.new("Frame")
-		ColorDisplay.Name = "ColorDisplay"
-		ColorDisplay.BackgroundColor3 = ColorPicker.Color
-		ColorDisplay.BorderSizePixel = 0
-		ColorDisplay.Size = UDim2.fromOffset(60, 180)
-		ColorDisplay.Position = UDim2.fromOffset(284, 10)
-		ColorDisplay.Parent = Background
-
-		local NameLabel = Instance.new("TextLabel")
-		NameLabel.Name = "NameLabel"
-		NameLabel.BackgroundTransparency = 1
-		NameLabel.Size = UDim2.fromOffset(264, 30)
-		NameLabel.Position = UDim2.fromOffset(10, 10)
-		NameLabel.TextColor3 = GetColor('Text/Primary')
-		NameLabel.TextSize = 24
-		NameLabel.FontFace = GetFont('Regular')
-		NameLabel.Text = Properties.Name
-		NameLabel.Parent = Background
-
-		local RGBLabel = Instance.new("TextLabel")
-		RGBLabel.Name = "RGBLabel"
-		RGBLabel.BackgroundTransparency = 1
-		RGBLabel.Size = UDim2.fromOffset(80, 30)
-		RGBLabel.Position = UDim2.fromOffset(10, 45)
-		RGBLabel.TextColor3 = GetColor('Text/Primary')
-		RGBLabel.TextSize = 24
-		RGBLabel.FontFace = GetFont('Regular')
-		RGBLabel.Text = "RGB:"
-		RGBLabel.Parent = Background
-
-		local RGBInput = Instance.new("TextBox")
-		RGBInput.Name = "RGBInput"
-		RGBInput.BackgroundColor3 = GetColor('Background/Secondary')
-		RGBInput.BorderSizePixel = 0
-		RGBInput.Size = UDim2.fromOffset(184, 30)
-		RGBInput.Position = UDim2.fromOffset(90, 45)
-		RGBInput.TextColor3 = GetColor('Text/Primary')
-		RGBInput.TextSize = 24
-		RGBInput.FontFace = GetFont('Regular')
-		RGBInput.Text = `{math.floor(ColorPicker.Color.R * 255)}, {math.floor(ColorPicker.Color.G * 255)}, {math.floor(ColorPicker.Color.B * 255)}`
-		RGBInput.ClearTextOnFocus = false
-		RGBInput.Parent = Background
-		AddCorner(RGBInput, UDim.new(0, 7))
-
-		local Hue, Saturation, Value = ColorPicker.Color:ToHSV()
-
-		local HSVLabel = Instance.new("TextLabel")
-		HSVLabel.Name = "HSVLabel"
-		HSVLabel.BackgroundTransparency = 1
-		HSVLabel.Size = UDim2.fromOffset(80, 30)
-		HSVLabel.Position = UDim2.fromOffset(10, 80)
-		HSVLabel.TextColor3 = GetColor('Text/Primary')
-		HSVLabel.TextSize = 24
-		HSVLabel.FontFace = GetFont('Regular')
-		HSVLabel.Text = "HSV:"
-		HSVLabel.Parent = Background
-
-		local HSVInput = Instance.new("TextBox")
-		HSVInput.Name = "HSVInput"
-		HSVInput.BackgroundColor3 = GetColor('Background/Secondary')
-		HSVInput.BorderSizePixel = 0
-		HSVInput.Size = UDim2.fromOffset(184, 30)
-		HSVInput.Position = UDim2.fromOffset(90, 80)
-		HSVInput.TextColor3 = GetColor('Text/Primary')
-		HSVInput.TextSize = 24
-		HSVInput.FontFace = GetFont('Regular')
-		HSVInput.Text = `{math.floor(Hue * 255)}, {math.floor(Saturation * 255)}, {math.floor(Value * 255)}`
-		HSVInput.ClearTextOnFocus = false
-		HSVInput.Parent = Background
-		AddCorner(HSVInput, UDim.new(0, 7))
-
-		local Hex = ColorPicker.Color:ToHex()
-
-		local HexLabel = Instance.new("TextLabel")
-		HexLabel.Name = "HexLabel"
-		HexLabel.BackgroundTransparency = 1
-		HexLabel.Size = UDim2.fromOffset(80, 30)
-		HexLabel.Position = UDim2.fromOffset(10, 115)
-		HexLabel.TextColor3 = GetColor('Text/Primary')
-		HexLabel.TextSize = 24
-		HexLabel.FontFace = GetFont('Regular')
-		HexLabel.Text = "Hex:"
-		HexLabel.Parent = Background
-
-		local HexInput = Instance.new("TextBox")
-		HexInput.Name = "HexInput"
-		HexInput.BackgroundColor3 = GetColor('Background/Secondary')
-		HexInput.BorderSizePixel = 0
-		HexInput.Size = UDim2.fromOffset(184, 30)
-		HexInput.Position = UDim2.fromOffset(90, 115)
-		HexInput.TextColor3 = GetColor('Text/Primary')
-		HexInput.TextSize = 24
-		HexInput.FontFace = GetFont('Regular')
-		HexInput.Text = `#{Hex}`
-		HexInput.ClearTextOnFocus = false
-		HexInput.Parent = Background
-		AddCorner(HexInput, UDim.new(0, 7))
-
-		local function UpdateText()
-			RGBInput.Text = `{math.floor(ColorPicker.Color.R * 255)}, {math.floor(ColorPicker.Color.G * 255)}, {math.floor(ColorPicker.Color.B * 255)}`
-			HSVInput.Text = `{math.floor(Hue * 255)}, {math.floor(Saturation * 255)}, {math.floor(Value * 255)}`
-			HexInput.Text = `#{Hex}`
-			ColorDisplay.BackgroundColor3 = ColorPicker.Color
-			ColorStrip.ImageColor3 = Color3.fromHSV(Hue, Saturation, 1)
-		end
-
-		local function UpdatePlus(MouseLocation)
-			local Size = ColorBackground.AbsolutePosition
-			local Scale = UIScale.Scale
-			local MaxSize = ColorBackground.AbsoluteSize / Scale
-			Plus.Position = UDim2.fromOffset(math.clamp((MouseLocation.X - Size.X) / Scale, 0, MaxSize.X), math.clamp((Mouse.Y - Size.Y) / Scale, 0, MaxSize.Y))
-			Hue, Saturation = 1 - (Plus.Position.X.Offset / MaxSize.X), 1 - (Plus.Position.Y.Offset / MaxSize.Y)
-			ColorPicker.Color = Color3.fromHSV(Hue, Saturation, Value)
-			Hex = ColorPicker.Color:ToHex()
-			UpdateText()
-			if Properties.Function then
-				Properties.Function(ColorPicker.Color)
-			end
-		end
-
-		DragDetector.DragStart:Connect(UpdatePlus)
-		DragDetector.DragContinue:Connect(UpdatePlus)
-
-		local function UpdateArrow()
-			local MaxSize = ColorStrip.AbsoluteSize.Y / UIScale.Scale
-			Arrow.Position = UDim2.new(1, 0, 0, math.clamp((Mouse.Y - ColorStrip.AbsolutePosition.Y) / UIScale.Scale, 0, MaxSize))
-			Value = math.floor((1 - (Arrow.Position.Y.Offset / MaxSize)) * 100) / 100
-			ColorPicker.Color = Color3.fromHSV(Hue, Saturation, Value)
-			Hex = ColorPicker.Color:ToHex()
-			UpdateText()
-			if Properties.Function then
-				Properties.Function(ColorPicker.Color)
-			end
-		end
-
-		local function UpdatePositions()
-			local Scale = UIScale.Scale
-			local AbsoluteSize = ColorBackground.AbsoluteSize
-			local AbsoluteSize2 = ColorStrip.AbsoluteSize
-			Plus.Position = UDim2.fromOffset((AbsoluteSize.X / Scale) - ((Hue * AbsoluteSize.X) / Scale), (AbsoluteSize.Y / Scale) - ((Saturation * AbsoluteSize.Y) / Scale))
-			Arrow.Position = UDim2.new(1, 0, 0, (AbsoluteSize2.Y / Scale) - ((AbsoluteSize2.Y * Value) / Scale))
-		end
-
-		DragDetector2.DragStart:Connect(UpdateArrow)
-		DragDetector2.DragContinue:Connect(UpdateArrow)
-
-		RGBInput.FocusLost:Connect(function()
-			local SplitText = RGBInput.Text:split(",")
-            if #SplitText == 0 then
-                SplitText = RGBInput.Text:split(" ")
-            end
-            if #SplitText == 0 then
-                SplitText[1], SplitText[2], SplitText[3] = ColorPicker.Color.R * 255, ColorPicker.Color.G * 255, ColorPicker.Color.B * 255
-            elseif #SplitText == 1 then
-                SplitText[2], SplitText[3] = SplitText[1], SplitText[1]
-            elseif #SplitText == 2 then
-                SplitText[3] = ColorPicker.Color.B * 255
-            end
-            local R, G, B = tonumber(SplitText[1]), tonumber(SplitText[2]), tonumber(SplitText[3])
-            if R and G and B then
-                ColorPicker.Color = Color3.fromRGB(R, G, B)
-                Hue, Saturation, Value = ColorPicker.Color:ToHSV()
-                Hex = ColorPicker.Color:ToHex()
-                UpdatePositions()
-                if Properties.Function then
-                    Properties.Function(ColorPicker.Color)
-                end
-            end
-            UpdateText()
-		end)
-
-		HSVInput.FocusLost:Connect(function()
-			local SplitText = HSVInput.Text:split(",")
-            if #SplitText == 0 then
-                SplitText = RGBInput.Text:split(" ")
-            end
-            SplitText[1], SplitText[2], SplitText[3] = SplitText[1] or Hue, SplitText[2] or Saturation, SplitText[3] or Value
-			local H, S, V = tonumber(SplitText[1]), tonumber(SplitText[2]), tonumber(SplitText[3])
-            if H and S and V then
-                H, S, V = H / 255, S / 255, V / 255
-                ColorPicker.Color = Color3.fromHSV(H, S, V)
-                Hue, Saturation, Value = H, S, V
-                Hex = ColorPicker.Color:ToHex()
-                UpdatePositions()
-                if Properties.Function then
-                    Properties.Function(ColorPicker.Color)
-                end
-            end
-            UpdateText()
-		end)
-
-		HexInput.FocusLost:Connect(function()
-			local Color = Color3.fromHex(HexInput.Text)
-			if Color then
-				ColorPicker.Color = Color
-				Hue, Saturation, Value = ColorPicker.Color:ToHSV()
-				Hex = ColorPicker.Color:ToHex()
-				UpdatePositions()
-				if Properties.Function then
-					Properties.Function(ColorPicker.Color)
-				end
-			end
-			UpdateText()
-		end)
-
-		UpdatePositions()
-		UpdateText()
-
-		function ColorPicker:Save(Tab)
-			Tab[Properties.Name:gsub(" ", "")] = {
-				R = ColorPicker.Color.R,
-				G = ColorPicker.Color.G,
-				B = ColorPicker.Color.B,
-			}
-		end
-
-		function ColorPicker:Load(Tab)
-			local Color = Color3.new(Tab.R, Tab.G, Tab.B)
-			if ColorPicker.Color ~= Color then
-				ColorPicker.Color = Color
-			end
-			Hue, Saturation, Value = Color:ToHSV()
-			Hex = Color:ToHex()
-			UpdatePositions()
-			UpdateText()
-			if Properties.Function then
-				Properties.Function(ColorPicker.Color)
-			end
-		end
-
-		function ColorPicker:SetVisible(Visible)
-			ColorPicker.Visible = Visible
-			Background.Visible = ColorPicker.Visible
-		end
-
-		ColorPicker.Object = Background
-
-		Properties.Module.Options[Properties.Name:gsub(" ", "")] = ColorPicker
-
-		return ColorPicker
-	end,]]
     ColorPicker = function(Properties)
-        local DefaultColor = Properties.Color or Properties.DefaultColor or Properties.Default or White
+        local DefaultColor = Properties.Color or Properties.DefaultColor or Properties.Default or Color3.White
         local DefaultTransparency = Properties.Transparency or Properties.DefaultTransparency or 0
         local DefaultHue, DefaultSaturation, DefaultValue = DefaultColor:ToHSV()
         local ColorPicker = {
@@ -2442,30 +2176,9 @@ local Templates; Templates = {
 		Background.Parent = Frame
 		AddCorner(Background, UDim.new(0, 7))
 
-        local ResetButton = Instance.new("TextButton")
-		ResetButton.Name = "Reset"
-		ResetButton.BackgroundColor3 = GetColor('Background/Button')
-		ResetButton.BorderSizePixel = 0
-		ResetButton.Size = UDim2.fromOffset(40, 40)
-		ResetButton.Position = UDim2.new(1, -40, 0, 0)
-		ResetButton.AutoButtonColor = false
-        ResetButton.Text = ""
-		ResetButton.Parent = Frame
-		AddCorner(ResetButton, UDim.new(0, 7))
-		AddHighlight(ResetButton)
-
-		local ResetButtonImage = Instance.new("ImageLabel")
-		ResetButtonImage.Name = "Image"
-		ResetButtonImage.BackgroundTransparency = 1
-		ResetButtonImage.Size = UDim2.fromOffset(24, 24)
-		ResetButtonImage.Position = UDim2.fromOffset(8, 8)
-		SetIcon(ResetButtonImage, "rotate-cw")
-		ResetButtonImage.Parent = ResetButton
-
         local TextSize = GetTextSize(Properties.Name, 24, GetFont('Regular'), 1000)
         
         local NameLabel = Instance.new("TextLabel")
-        NameLabel.Name = "NameLabel"
         NameLabel.Position = UDim2.fromOffset(5, 0)
         NameLabel.Size = UDim2.fromOffset(TextSize.X + 5, 40)
         NameLabel.BackgroundTransparency = 1
@@ -2846,12 +2559,15 @@ local Templates; Templates = {
             Decimal = 100
         })
 
-        ResetButton.MouseButton1Click:Connect(function()
-            RedSlider:InputNumber(math.floor(DefaultColor.R * 255), true, true)
-            GreenSlider:InputNumber(math.floor(DefaultColor.G * 255), true, true)
-            BlueSlider:InputNumber(math.floor(DefaultColor.B * 255), true, true)
-            TransparencySlider:InputNumber(DefaultTransparency)
-        end)
+		Components.Reset({
+			Parent = Frame,
+			Function = function()
+				RedSlider:InputNumber(math.floor(DefaultColor.R * 255), true, true)
+				GreenSlider:InputNumber(math.floor(DefaultColor.G * 255), true, true)
+				BlueSlider:InputNumber(math.floor(DefaultColor.B * 255), true, true)
+				TransparencySlider:InputNumber(DefaultTransparency)
+			end
+		})
 
         local function UpdateSliderDisplays()
             RedSlider:InputNumber(ColorPicker.R, true, true)
@@ -2869,21 +2585,20 @@ local Templates; Templates = {
             FireCallback()
         end
 
-		local function UpdatePlus()
-			local Size = ColorBackground.AbsolutePosition
-			local Scale = UIScale.Scale
-			local MaxSize = ColorBackground.AbsoluteSize / Scale
-			Plus.Position = UDim2.fromOffset(math.clamp((Mouse.X - Size.X) / Scale, 0, MaxSize.X), math.clamp((Mouse.Y - Size.Y) / Scale, 0, MaxSize.Y))
-            ColorPicker.H = 1 - (Plus.Position.X.Offset / MaxSize.X)
-            ColorPicker.S = 1 - (Plus.Position.Y.Offset / MaxSize.Y)
+		local function UpdatePlus(MouseLocation)
+			local X = math.clamp((MouseLocation.X - ColorBackground.AbsolutePosition.X) / UIScale.Scale, 0, ColorBackground.Size.X.Offset)
+			local Y = math.clamp((MouseLocation.Y - GuiService.TopbarInset.Height - ColorBackground.AbsolutePosition.Y) / UIScale.Scale, 0, ColorBackground.Size.Y.Offset)
+			Plus.Position = UDim2.fromOffset(X, Y)
+            ColorPicker.H = 1 - (Plus.Position.X.Offset / ColorBackground.Size.X.Offset)
+            ColorPicker.S = 1 - (Plus.Position.Y.Offset / ColorBackground.Size.Y.Offset)
 			UpdateFromHSV()
             UpdateMainDisplay()
 		end
 
-        local function UpdateArrow()
-			local MaxSize = ColorStrip.AbsoluteSize.Y / UIScale.Scale
-			Arrow.Position = UDim2.new(1, 0, 0, math.clamp((Mouse.Y - ColorStrip.AbsolutePosition.Y) / UIScale.Scale, 0, MaxSize))
-            ColorPicker.V = math.floor((1 - (Arrow.Position.Y.Offset / MaxSize)) * 255) / 255
+        local function UpdateArrow(MouseLocation)
+			local Y = math.clamp((MouseLocation.Y - GuiService.TopbarInset.Height - ColorStrip.AbsolutePosition.Y) / UIScale.Scale, 0, ColorStrip.Size.Y.Offset)
+			Arrow.Position = UDim2.new(1, 0, 0, Y)
+            ColorPicker.V = math.floor((1 - (Arrow.Position.Y.Offset / ColorStrip.Size.Y.Offset)) * 255) / 255
             UpdateFromHSV()
 			UpdateMainDisplay()
 		end
@@ -2902,7 +2617,6 @@ local Templates; Templates = {
 
         ColorBackgroundDragDetector.DragStart:Connect(UpdatePlus)
 		ColorBackgroundDragDetector.DragContinue:Connect(UpdatePlus)
-
 		ColorStripDragDetector.DragStart:Connect(UpdateArrow)
 		ColorStripDragDetector.DragContinue:Connect(UpdateArrow)
 
@@ -2920,7 +2634,7 @@ local Templates; Templates = {
             end
 			local Len = math.min(#Numbers, 4)
             for i = 1, Len do
-                SliderIndexes[i]:InputNumber(tonumber(Numbers[i]), i == Len, i == Len)
+                SliderIndexes[i]:InputNumber(tonumber(Numbers[i]), i ~= Len, i ~= Len)
             end
         end)
 
@@ -2931,7 +2645,7 @@ local Templates; Templates = {
 				R = ColorPicker.R,
 				G = ColorPicker.G,
 				B = ColorPicker.B,
-                A = ColorPicker.A,
+                T = ColorPicker.T,
 			}
 		end
 
@@ -2950,7 +2664,7 @@ local Templates; Templates = {
         function ColorPicker:SetColor(Color)
             RedSlider:InputNumber(math.floor(Color.R * 255), true, true)
             GreenSlider:InputNumber(math.floor(Color.G * 255), true, true)
-            BlueSlider:InputNumber(math.floor(Color.B * 255), true, false)
+            BlueSlider:InputNumber(math.floor(Color.B * 255))
         end
 
         function ColorPicker:SetTransparency(Transparency)
@@ -2958,7 +2672,6 @@ local Templates; Templates = {
         end
 
         ColorPicker.Object = Frame
-
         Properties.Module.Options[Name] = ColorPicker
 
         return ColorPicker
@@ -2969,9 +2682,9 @@ local ModulesTopBar, MenuOptionsMenu
 
 function Gui:CreateMenu(Properties)
 	local Menu = {
-		Options = setmetatable({}, LengthMetatable),
-        Buttons = setmetatable({}, LengthMetatable),
-		Keybinds = setmetatable({}, LengthMetatable),
+		Options = {},
+        Buttons = {},
+		Keybinds = {}
 	}
 
 	local TopBar = Instance.new("TextButton")
@@ -2991,7 +2704,7 @@ function Gui:CreateMenu(Properties)
     UICorner.Parent = TopBar
 
     local NameLabel = Instance.new("TextLabel")
-    NameLabel.Name = "NameLabel"
+	NameLabel.Name = 'Title'
     NameLabel.Size = UDim2.fromScale(1, 1)
     NameLabel.BackgroundTransparency = 1
     NameLabel.Text = `  {Properties.Name}`
@@ -3079,13 +2792,13 @@ function Gui:CreateMenu(Properties)
 	end
 
 	function Menu:HideOptions()
-		for i, v in Menu.Options do
+		for _, v in Menu.Options do
 			v.Object.Visible = false
 		end
 	end
 
 	function Menu:HideChildren()
-		for i, v in ScrollingFrame:GetChildren() do
+		for _, v in ScrollingFrame:GetChildren() do
 			if v:IsA("GuiObject") then
 				v.Visible = false
 			end
@@ -3093,13 +2806,13 @@ function Gui:CreateMenu(Properties)
 	end
 
 	function Menu:ShowOptions()
-		for i, v in Menu.Options do
+		for _, v in Menu.Options do
 			v.Object.Visible = if v.Visible ~= nil then v.Visible else true
 		end
 	end
 
 	function Menu:ShowChildren()
-		for i, v in ScrollingFrame:GetChildren() do
+		for _, v in ScrollingFrame:GetChildren() do
 			if v:IsA("GuiObject") then
 				v.Visible = true
 			end
@@ -3107,7 +2820,7 @@ function Gui:CreateMenu(Properties)
 	end
 
 	function Menu:ClearAllChildren()
-		for i, v in Menu.Options do
+		for _, v in Menu.Options do
 			if v.Enabled then
 				v:Toggle()
 			end
@@ -3120,13 +2833,14 @@ function Gui:CreateMenu(Properties)
     if Properties.CanCreateOptions == nil or Properties.CanCreateOptions == true then
         function Menu:CreateOption(Properties)
             Properties.Parent = ScrollingFrame
-            Properties.LayoutOrder = #Menu.Options + #Menu.Keybinds
+            Properties.LayoutOrder = table.len(Menu.Options) + table.len(Menu.Keybinds)
             Properties.Module = Menu
-            local Toggle = Templates.Toggle(Properties)
-            Toggle.Options = setmetatable({}, LengthMetatable)
+            local Toggle = Components.Toggle(Properties)
+            Toggle.Options = {}
+			Toggle.Buttons = {}
 
             Toggle.Object.Button.MouseButton2Click:Connect(function()
-                MenuOptionsMenu.Object.NameLabel.Text = Properties.Name
+                MenuOptionsMenu.Object.Title.Text = Properties.Name
                 for i, v in Gui.Menus do
                     v.Object.Visible = i == "MenuOptions"
                 end
@@ -3136,11 +2850,11 @@ function Gui:CreateMenu(Properties)
                 end
             end)
 
-            for i, v in Templates do
+            for i, v in Components do
                 if i == 'Keybind' then continue end
                 Toggle[`Create{i}`] = function(_, Properties)
                     Properties.Parent = MenuOptionsMenu.Object.ScrollingFrame
-                    Properties.LayoutOrder = #Toggle.Options
+                    Properties.LayoutOrder = table.len(Toggle.Options)
                     Properties.Module = Toggle
                     local Obj = v(Properties)
                     MenuOptionsMenu.Options[Properties.Name:gsub(" ", "")] = Obj
@@ -3154,10 +2868,10 @@ function Gui:CreateMenu(Properties)
         end
     end
 
-    for i, v in Templates do
+    for i, v in Components do
         Menu[`Create{i}`] = function(_, Properties)
             Properties.Parent = ScrollingFrame
-            Properties.LayoutOrder = #Menu.Options + #Menu.Keybinds
+            Properties.LayoutOrder = table.len(Menu.Options) + table.len(Menu.Keybinds)
             Properties.Module = Menu
             return v(Properties)
         end
@@ -3207,6 +2921,10 @@ function Gui:CreateModuleList()
 	TopBar.Active = false
 	TopBar.Interactable = false
 	TopBar.Parent = HudFolder
+
+	local TopBarUIScale = Instance.new('UIScale')
+	TopBarUIScale.Scale = 1
+	TopBarUIScale.Parent = TopBar
 
 	ModuleList.Object = TopBar
 
@@ -3391,6 +3109,10 @@ function Gui:CreateModuleList()
 			end
 			UpdateYPositions()
 		end
+	end
+
+	function ModuleList:SetScale(Scale)
+		TopBarUIScale.Scale = Scale
 	end
 
 	function ModuleList:SetWatermarkText(Text)
@@ -3650,17 +3372,20 @@ local function UpdateCategoryPositions()
 end
 
 function Gui:CreateCategory(Properties)
+	local Rand = Random.new(table.len(Gui.Categories))
 	local Category = {
-		Expanded = true
+		Expanded = true,
+		ClosedPosition = UDim2.fromScale(Rand:NextNumber(-1, 1), Rand:NextInteger(0, 1) == 0 and -1 or 1),
+		OpenedPosition = UDim2.fromOffset(8, 60)
 	}
 
-	local Index = #Gui.Categories
-	local Rand = Random.new(Index)
-	local ClosedPos = UDim2.fromScale(Rand:NextNumber(-1, 1), Rand:NextInteger(0, 1) == 0 and -1 or 1)
+	local Info = TweenInfo.new(0.2)
+	local CloseInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	local OpenTween, CloseTween, ExpandTween, ArrowTween
 
 	local TopBar2 = TopBar
 	local TopBar = Instance.new("ImageButton")
-	TopBar.Position = ClosedPos
+	TopBar.Position = Category.ClosedPosition
 	TopBar.Size = UDim2.fromOffset(180, 28)
 	TopBar.Name = `{Properties.Name}Category`
     TopBar.BackgroundColor3 = GetColor("Main/Accent")
@@ -3673,7 +3398,7 @@ function Gui:CreateCategory(Properties)
     UICorner.Parent = TopBar
 
     local NameLabel = Instance.new("TextLabel")
-    NameLabel.Name = "NameLabel"
+	NameLabel.Name = 'Title'
     NameLabel.Text = `   {Properties.Name}`
 	NameLabel.TextColor3 = GetColor('Text/Primary')
 	NameLabel.FontFace = GetFont('SemiBold')
@@ -3731,9 +3456,6 @@ function Gui:CreateCategory(Properties)
 	SetIcon(ArrowImage, "chevron-down")
 	ArrowImage.Parent = Arrow
 
-	local Info = TweenInfo.new(0.2)
-	local Tween, ArrowTween, Con
-
 	local function GetHeight(NoLimits)
 		local AbsoluteContentSize = Layout.AbsoluteContentSize
 		local Scale = UIScale.Scale
@@ -3746,47 +3468,43 @@ function Gui:CreateCategory(Properties)
 	end)
 
 	function Category:Expand(Instant)
-		Category.Expanded = not Category.Expanded
+		self.Expanded = not self.Expanded
         if not Gui.CategoryAnimations or Instant == true then
             ScrollingFrame.Size = UDim2.new(1, 0, 0, GetHeight())
-            ScrollingFrame.Visible = Category.Expanded
-            Arrow.Rotation = Category.Expanded and 0 or -90
-            UICorner.BottomLeftRadius = UDim.new(0, Category.Expanded and 0 or 5)
-            UICorner.BottomRightRadius = UDim.new(0, Category.Expanded and 0 or 5)
+            ScrollingFrame.Visible = self.Expanded
+            Arrow.Rotation = self.Expanded and 0 or -90
+            UICorner.BottomLeftRadius = UDim.new(0, self.Expanded and 0 or 5)
+            UICorner.BottomRightRadius = UDim.new(0, self.Expanded and 0 or 5)
             return
         end
-		if Tween then
-			Tween:Cancel()
+		if ExpandTween then
+			ExpandTween:Cancel()
 		end
 		if ArrowTween then
 			ArrowTween:Cancel()
 		end
-		Tween = TweenService:Create(ScrollingFrame, Info, {Size = UDim2.new(1, 0, 0, GetHeight())})
-		ArrowTween = TweenService:Create(Arrow, Info, {Rotation = Category.Expanded and 0 or -90})
-		if Category.Expanded then
+		ExpandTween = TweenService:Create(ScrollingFrame, Info, {Size = UDim2.new(1, 0, 0, GetHeight())})
+		ArrowTween = TweenService:Create(Arrow, Info, {Rotation = self.Expanded and 0 or -90})
+		if self.Expanded then
 			ScrollingFrame.Visible = true
             UICorner.BottomLeftRadius = UDim.new(0, 0)
             UICorner.BottomRightRadius = UDim.new(0, 0)
 		else
-			Tween.Completed:Once(function(State)
+			ExpandTween.Completed:Once(function(State)
 				if State == Enum.PlaybackState.Completed then
 					ScrollingFrame.Visible = false
                     UICorner.BottomLeftRadius = UDim.new(0, 5)
                     UICorner.BottomRightRadius = UDim.new(0, 5)
+					ExpandTween, ArrowTween = nil, nil
 				end
 			end)
 		end
-		Tween:Play()
+		ExpandTween:Play()
 		ArrowTween:Play()
 	end
 
-	local Position = UDim2.fromOffset(8, 60)
-	local Info2 = TweenInfo.new(0.2)
-	local Info3 = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-	local OpenTween, CloseTween
-
 	DragDetector.DragContinue:Connect(function()
-		Position = TopBar.Position
+		Category.OpenedPosition = TopBar.Position
 	end)
 
 	function Category:Toggle()
@@ -3798,7 +3516,7 @@ function Gui:CreateCategory(Properties)
             return
         end
 		if Visible and not CloseTween then
-			CloseTween = TweenService:Create(TopBar, Info3, {Position = ClosedPos})
+			CloseTween = TweenService:Create(TopBar, CloseInfo, {Position = self.ClosedPosition})
 			CloseTween:Play()
 			CloseTween.Completed:Once(function(State)
 				if State == Enum.PlaybackState.Completed and Visible then
@@ -3812,7 +3530,7 @@ function Gui:CreateCategory(Properties)
 				CloseTween:Cancel()
 				TopBar2.Visible = true
 			end
-			OpenTween = TweenService:Create(TopBar, Info2, {Position = Position})
+			OpenTween = TweenService:Create(TopBar, Info, {Position = self.OpenedPosition})
 			OpenTween:Play()
 			OpenTween.Completed:Once(function()
 				OpenTween = nil
@@ -3821,16 +3539,23 @@ function Gui:CreateCategory(Properties)
 	end
 
 	function Category:SetOpenedPosition(Pos)
-		Position = Pos
+		self.OpenedPosition = Pos
+		if CategoryHolder.Visible and not self:IsMoving() then
+			TopBar.Position = self.OpenedPosition
+		end
 	end
 
 	function Category:IsMoving()
 		return OpenTween ~= nil or CloseTween ~= nil
 	end
 
-	Arrow.MouseButton1Click:Connect(Category.Expand)
-	Arrow.MouseButton2Click:Connect(Category.Expand)
-	TopBar.InputEnded:Connect(function(Input)
+	Arrow.MouseButton1Click:Connect(function()
+		Category:Expand()
+	end)
+	Arrow.MouseButton2Down:Connect(function()
+		Category:Expand()
+	end)
+	TopBar.InputBegan:Connect(function(Input)
 		if Input.UserInputType == Enum.UserInputType.MouseButton2 then
 			Category:Expand()
 		end
@@ -3842,8 +3567,8 @@ function Gui:CreateCategory(Properties)
 			Enabled = false,
 			Hold = false,
             Keybind = 'None',
-			Options = setmetatable({}, LengthMetatable),
-            Keybinds = setmetatable({}, LengthMetatable)
+			Options = {},
+            Keybinds = {}
 		}
 
 		local Button = Instance.new("TextButton")
@@ -3856,12 +3581,13 @@ function Gui:CreateCategory(Properties)
 		Button.TextSize = 17
 		Button.AutoButtonColor = false
 		Button.FontFace = GetFont('Regular')
-		Button.LayoutOrder = #Gui.Modules
+		Button.LayoutOrder = table.len(Gui.Modules)
 		Button.Parent = ScrollingFrame
 		AddCorner(Button, UDim.new(0, 5))
 		AddTooltip(Button, Properties.Info or Properties.Tooltip)
 		AddHighlight(Button)
 		AddMaid(Module)
+		AddInstanceTable(Module)
 
 		local EnabledBar = Instance.new("Frame")
 		EnabledBar.Name = "Enabled"
@@ -3945,7 +3671,7 @@ function Gui:CreateCategory(Properties)
             DeleteKeybindImage.Parent = DeleteKeybind
 
             local Hold = Instance.new("TextButton")
-            Hold.Name = "ToggleOnRelease"
+            Hold.Name = "Hold"
             Hold.BackgroundColor3 = GetColor('Background/Secondary')
             Hold.BorderSizePixel = 0
             Hold.Size = UDim2.fromOffset(140, 30)
@@ -4018,10 +3744,11 @@ function Gui:CreateCategory(Properties)
                 end
 			else
 				ModuleList:RemoveModule(Properties.Name)
-				Module:DisconnectAll()
+				self:DisconnectAll()
+				self:ClearInstances()
 			end
             if Properties.Function then
-				task.spawn(Properties.Function, Module.Enabled)
+				task.spawn(Properties.Function, self.Enabled)
 			end
 		end
 
@@ -4039,22 +3766,23 @@ function Gui:CreateCategory(Properties)
                 v.Object.Visible = true
             end
 			KeybindFrame.Visible = true
-            Gui.Menus.Options.Object.NameLabel.Text = Properties.Name
+            Gui.Menus.Options.Object.Title.Text = Properties.Name
 			Gui.Menus.Options:Show()
 		end)
 
 		Module.Object = Button
+		Module.KeybindObject = KeybindFrame
 
-		for i, v in Templates do
+		for i, v in Components do
 			Module[`Create{i}`] = function(_, Properties)
 				Properties.Parent = Gui.Menus.Options.Object.ScrollingFrame
-                Properties.LayoutOrder = #Module.Options + #Module.Keybinds
+                Properties.LayoutOrder = table.len(Module.Options) + table.len(Module.Keybinds)
 				Properties.Module = Module
 				return v(Properties)
 			end
 		end
 
-		Gui.Modules[Properties.Name:gsub(" ", "")] = Module
+		Gui.Modules[Properties.Name:gsub(' ', '')] = Module
 
 		return Module
 	end
@@ -4062,8 +3790,8 @@ function Gui:CreateCategory(Properties)
 	function Category:CreateButton(Properties)
 		local Button = {
             Keybind = 'None',
-			Options = setmetatable({}, LengthMetatable),
-            Keybinds = setmetatable({}, LengthMetatable)
+			Options = {},
+            Keybinds = {}
 		}
 
 		local TextButton = Instance.new("TextButton")
@@ -4076,7 +3804,7 @@ function Gui:CreateCategory(Properties)
 		TextButton.FontFace = GetFont('Regular')
 		TextButton.Text = ` {Properties.Name}`
 		TextButton.AutoButtonColor = false
-        TextButton.LayoutOrder = #Gui.Modules + #Gui.Buttons
+        TextButton.LayoutOrder = table.len(Gui.Modules) + table.len(Gui.Buttons)
 		TextButton.Parent = ScrollingFrame
 		AddCorner(TextButton, UDim.new(0, 5))
 		AddTooltip(TextButton, Properties.Info or Properties.Tooltip)
@@ -4187,16 +3915,16 @@ function Gui:CreateCategory(Properties)
                 v.Object.Visible = true
             end
             KeybindFrame.Visible = true
-            Gui.Menus.Options.Object.NameLabel.Text = Properties.Name
+            Gui.Menus.Options.Object.Title.Text = Properties.Name
 			Gui.Menus.Options:Show()
 		end)
 
         Button.Object = TextButton
 
-		for i, v in Templates do
+		for i, v in Components do
 			Button[`Create{i}`] = function(_, Properties)
 				Properties.Parent = Gui.Menus.Options.Object.ScrollingFrame
-                Properties.LayoutOrder = #Button.Options + #Button.Keybinds
+                Properties.LayoutOrder = table.len(Button.Options) + table.len(Button.Keybinds)
 				Properties.Module = Button
 				return v(Properties)
 			end
@@ -4226,7 +3954,7 @@ local PrevMenu
 MenuOptionsMenu = Gui:CreateMenu({
     Name = "Menu Options"
 })
-MenuOptionsMenu.Object.NameLabel.Text = "Options"
+MenuOptionsMenu.Object.Title.Text = "Options"
 MenuOptionsMenu:BindToClose(function()
     for i, v in Gui.Menus do
         if i == PrevMenu then
@@ -4249,9 +3977,9 @@ local KeepOnTeleport; KeepOnTeleport = ConfigMenu:CreateToggle({
         KeepOnTeleport:Clean(Plr.OnTeleport:Connect(function()
             if TeleportCheck then return end
             TeleportCheck = true
-            local Code = ''
+            local Code
             if shared.TidalWaveDev then
-                Code = 'loadfile("Loader.lua")()'
+                Code = 'shared.TidalWaveDev = true\nloadfile("Loader.lua")()'
             else
                 Code = 'loadstring(game:HttpGet("https://github.com/fluidnarrator30/Tidal-Wave/blob/main/Loader.lua", true))()'
             end
@@ -4293,29 +4021,29 @@ do
 	end
 
 	UpdateFonts = function()
-		local Font = GetFont('Regular')
+		local RegularFont = GetFont('Regular')
 		local SemiBoldFont = GetFont('SemiBold')
 		local BoldFont = GetFont('Bold')
 
-		DoneButton.FontFace = Font
-		Tooltip.FontFace = Font
+		DoneButton.FontFace = RegularFont
+		Tooltip.FontFace = RegularFont
 
 		for i, v in Gui.Menus do
-			SetFont(v.Object.NameLabel, SemiBoldFont)
+			SetFont(v.Object.Title, SemiBoldFont)
 			for _, v2 in v.Object.ScrollingFrame:GetDescendants() do
-				SetFont(v2, Font)
+				SetFont(v2, RegularFont)
 			end
 		end
 
 		for i, v in Gui.Categories do
-			SetFont(v.Object, SemiBoldFont)
+			SetFont(v.Object.Title, SemiBoldFont)
 			for _, v2 in v.Object.ScrollingFrame:GetDescendants() do
-				SetFont(v2, Font)
+				SetFont(v2, RegularFont)
 			end
 		end
 
 		for i, v in TopBar:GetChildren() do
-			SetFont(v, Font)
+			SetFont(v, RegularFont)
 		end
 
 		local WatermarkShadow = ModuleList.Object:FindFirstChildOfClass("TextLabel")
@@ -4332,9 +4060,9 @@ do
 			local TextShadow = v:FindFirstChildOfClass("TextLabel")
 			local TextLabel = TextShadow and TextShadow:FindFirstChildOfClass("TextLabel")
 			if TextShadow then
-				SetFont(TextShadow, Font)
+				SetFont(TextShadow, RegularFont)
 				if TextLabel then
-					SetFont(TextLabel, Font)
+					SetFont(TextLabel, RegularFont)
 				end
 			end
 		end
@@ -4346,9 +4074,9 @@ do
 				local TitleShadow = v:FindFirstChild("TitleShadow")
 				local Title = TitleShadow and TitleShadow:FindFirstChildOfClass("TextLabel")
 				if TextShadow then
-					SetFont(TextShadow, Font)
+					SetFont(TextShadow, RegularFont)
 					if Text then
-						SetFont(Text, Font)
+						SetFont(Text, RegularFont)
 					end
 				end
 				if TitleShadow then
@@ -4366,9 +4094,9 @@ Run(function()
     local function AddFont(FontName)
         local Fonts = {Gui.Fonts[FontName].Name}
 
-        for i, v in Enum.Font:GetEnumItems() do
+        for _, v in Enum.Font:GetEnumItems() do
             if v.Name == Gui.Fonts[FontName].Name then continue end
-            table.insert(Fonts, v.Name)
+			Fonts[#Fonts + 1] = v.Name
         end
 
         ConfigMenu:CreateDropdown({
@@ -4390,6 +4118,7 @@ end)
 local ReloadButton = ConfigMenu:CreateButton({
 	Name = "Reload",
 	Function = function()
+		local Dev = shared.TidalWaveDev
 		Gui:Shutdown()
 		if IsStudio then
 			for _, v in script.Parent.Parent.Games:GetChildren() do
@@ -4398,7 +4127,8 @@ local ReloadButton = ConfigMenu:CreateButton({
 			script.Parent.Parent.Enabled = false
 			script.Parent.Parent.Enabled = true
 		else
-			if shared.TidalWaveDev then
+			if Dev then
+				shared.TidalWaveDev = true
 				loadfile("Loader.lua")()
 			else
 				loadstring(game:HttpGet("https://raw.githubusercontent.com/fluidnarrator30/Tidal-Wave/refs/heads/main/Loader.lua", true))()
@@ -4409,10 +4139,7 @@ local ReloadButton = ConfigMenu:CreateButton({
 
 ConfigMenu:CreateButton({
 	Name = "Close",
-	Function = function()
-        Gui:Shutdown()
-        shared.TidalWaveDev = nil
-	end
+	Function = Gui.Shutdown
 })
 
 local GuiMenu = Gui:CreateMenu({
@@ -4427,81 +4154,135 @@ GuiMenu:CreateOption({
     end
 })
 
+local function ColorOption(Option)
+	local Icon = Option.Object:FindFirstChild('Reset') or Option.Object:FindFirstChild('Delete')
+	if Icon then
+		ApplyColor(Icon, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Icon.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
+	end
+	if Option.Type == "Toggle" then
+		ApplyColor(Option.Object.Button, {['Text/Primary'] = {'TextColor3', 'TextTransparency'},['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Button.Enabled, Option.Enabled and {['Main/EnabledBar'] = {'BackgroundColor3', 'BackgroundTransparency'}} or {['Main/DisabledBar'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+	elseif Option.Type == "TextBox" then
+		ApplyColor(Option.Object, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.TextLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+		ApplyColor(Option.Object.TextBox, {['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}, ['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Text/Placeholder'] = {'PlaceholderColor3'}})
+	elseif Option.Type == "Slider" then
+		ApplyColor(Option.Object.Background, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.TextLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+		ApplyColor(Option.Object.Background.Input, {['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}, ['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+		ApplyColor(Option.Object.Background.SliderFrame.RightBar, {['Slider/RightBar'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.SliderFrame.LeftBar, {['Slider/LeftBar'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.SliderFrame.LeftBar.Handle, {['Slider/Handle'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+	elseif Option.Type == "TextList" then
+		ApplyColor(Option.Object.Background, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.TextLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+		ApplyColor(Option.Object.Background.TopBar, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.TopBar.TextLabel, {['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}, ['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+		ApplyColor(Option.Object.Background.TopBar.TextLabel.ScrollingFrame, {['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.TopBar.TextLabel.Arrow.ArrowImage, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
+		ApplyColor(Option.Object.Delete, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Delete.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
+		for _, Button in Option.Object.Background.TopBar.TextLabel.ScrollingFrame:GetChildren() do
+			if Button:IsA("TextButton") then
+				if Button.Name == 'Plus' then
+					ApplyColor(Button, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+					ApplyColor(Button.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
+				else
+					ApplyColor(Button, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+					ApplyColor(Button.Enabled, {['Main/EnabledBar'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+					ApplyColor(Button.Delete.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
+					ApplyColor(Button.RenameTextBox, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Text/Placeholder'] = {'PlaceholderColor3'}})
+				end
+			end
+		end
+	elseif Option.Type == "Dropdown" then
+		ApplyColor(Option.Object.Background, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.TextLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+		ApplyColor(Option.Object.Background.TopBar.TextLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.TopBar.TextLabel.ScrollingFrame, {['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.TopBar.TextLabel.Arrow.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
+		for _, Button in Option.Object.Background.TopBar.TextLabel.ScrollingFrame:GetChildren() do
+			if Button:IsA("TextButton") then
+				ApplyColor(Button, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+			end
+		end
+	elseif Option.Type == "ColorPicker" then
+		ApplyColor(Option.Object.Background, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.TextLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+		ApplyColor(Option.Object.Background.RGBFrame, {['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Option.Object.Background.RGBFrame.RGBInput, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Text/Placeholder'] = {'PlaceholderColor3'}})
+		ApplyColor(Option.Object.Background.ColorPickerDropdown, {['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		for _, Slider in Option.Object.Background.ColorPickerDropdown.Holder:GetChildren() do
+			if Slider:IsA("Frame") then
+				ApplyColor(Slider.Label, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+				ApplyColor(Slider.Input, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Text/Placeholder'] = {'PlaceholderColor3'}, ['Background/Button'] = {"BackgroundColor3", "BackgroundTransparency"}})
+				ApplyColor(Slider.SliderFrame.LeftBar, {['Slider/LeftBar'] = {"BackgroundColor3", "BackgroundTransparency"}})
+				ApplyColor(Slider.SliderFrame.RightBar, {['Slider/RightBar'] = {'BackgroundColor3', "BackgroundTransparency"}})
+				ApplyColor(Slider.SliderFrame.LeftBar.Handle, {['Slider/Handle'] = {"BackgroundColor3", "BackgroundTransparency"}})
+			end
+		end
+	end
+end
+
+local function ColorKeybind(KeybindObject)
+	ApplyColor(KeybindObject.Delete, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+	ApplyColor(KeybindObject.Delete.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
+	ApplyColor(KeybindObject.Background, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+	ApplyColor(KeybindObject.Background.KeybindName, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+	ApplyColor(KeybindObject.Background.BindButton, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+	local Hold = KeybindObject.Background:FindFirstChild('Hold')
+	if Hold then
+		ApplyColor(Hold, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		ApplyColor(Hold.Enabled, {['Main/EnabledBar'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+	end
+end
+
 function Gui:UpdateTheme()
     local CurrentTheme = GetCurrentTheme()
     if not CurrentTheme then return end
     ApplyColor(Tooltip, {['Text/Tooltip'] = {'TextColor3', 'TextTransparency'}, ['Background/Tooltip'] = {'BackgroundColor3', 'BackgroundTransparency'}})
     ApplyColor(TooltipUIStroke, {['Outline/Tooltip'] = {'Color', "Transparency"}})
     ApplyColor(GuiFolder.Done, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}, ['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+	ApplyColor(TopBar, {['Background/Primary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
 
     for _, Category in Gui.Categories do
-        ApplyColor(Category.Object.NameLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+        ApplyColor(Category.Object.Title, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
         ApplyColor(Category.Object.Arrow.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
         ApplyColor(Category.Object.ScrollingFrame, {['Background/Primary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
         ApplyColor(Category.Object, {['Main/Accent'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-    end
-    for _, Module in Gui.Modules do
-        ApplyColor(Module.Object, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Button'] = {'BackgroundColor3', "BackgroundTransparency"}})
-        ApplyColor(Module.Object.Enabled, {[Module.Enabled and 'Main/EnabledBar' or 'Main/DisabledBar'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-    end
+	end
     for _, Button in Gui.Buttons do
         ApplyColor(Button.Object, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Button'] = {'BackgroundColor3', "BackgroundTransparency"}})
     end
     for _, Button in TopBar:GetChildren() do
         if Button:IsA("TextButton") then
-            ApplyColor(Button, {[Button == SelectedTopBar and 'Background/ButtonHover' or 'Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}, ['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+            ApplyColor(Button, {[Button == Gui.SelectedTopBar and 'Background/ButtonHover' or 'Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}, ['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
         elseif Button:IsA("TextBox") then
             ApplyColor(Button, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}, ['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Text/Placeholder'] = {'PlaceholderColor3'}})
         end
     end
+	for _, Module in Gui.Modules do
+        ApplyColor(Module.Object, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Button'] = {'BackgroundColor3', "BackgroundTransparency"}})
+        ApplyColor(Module.Object.Enabled, {[Module.Enabled and 'Main/EnabledBar' or 'Main/DisabledBar'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+		for _, Option in Module.Options do
+			ColorOption(Option)
+		end
+		for _, Keybind in Module.Keybinds do
+			ColorKeybind(Keybind.Object)
+		end
+		ColorKeybind(Module.KeybindObject)
+    end
     for _, Menu in Gui.Menus do
         ApplyColor(Menu.Object, {['Main/Accent'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-        ApplyColor(Menu.Object.NameLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
+        ApplyColor(Menu.Object.Title, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
         ApplyColor(Menu.Object.Close.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
         ApplyColor(Menu.Object.ScrollingFrame, {['Background/Primary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
         for _, Option in Menu.Options do
-            local Icon = Option.Object:FindFirstChild("Reset")
-            if Icon then
-                ApplyColor(Icon, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-                ApplyColor(Icon.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
-            end
-            if Option.Type == "Toggle" then
-                ApplyColor(Option.Object.Button, {['Text/Primary'] = {'TextColor3', 'TextTransparency'},['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-                ApplyColor(Option.Object.Button.Enabled, Option.Enabled and {['Main/EnabledBar'] = {'BackgroundColor3', 'BackgroundTransparency'}} or {['Main/DisabledBar'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-            elseif Option.Type == "Dropdown" then
-                ApplyColor(Option.Object.Background, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-                ApplyColor(Option.Object.Background.TextLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
-                ApplyColor(Option.Object.Background.TopBar.NameLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-                ApplyColor(Option.Object.Background.TopBar.NameLabel.ScrollingFrame, {['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-                ApplyColor(Option.Object.Background.TopBar.NameLabel.Arrow.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
-                for _, Button in Option.Object.Background.TopBar.NameLabel.ScrollingFrame:GetChildren() do
-                    if Button:IsA("TextButton") then
-                        ApplyColor(Button, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-                    end
-                end
-            elseif Option.Type == "ColorPicker" then
-                ApplyColor(Option.Object.Background, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-                ApplyColor(Option.Object.Background.NameLabel, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
-                ApplyColor(Option.Object.Background.RGBFrame, {['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-                ApplyColor(Option.Object.Background.RGBFrame.RGBInput, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Text/Placeholder'] = {'PlaceholderColor3'}})
-                ApplyColor(Option.Object.Background.ColorPickerDropdown, {['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-                for _, Slider in Option.Object.Background.ColorPickerDropdown.Holder:GetChildren() do
-                    if Slider:IsA("Frame") then
-                        ApplyColor(Slider.Label, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
-                        ApplyColor(Slider.Input, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Text/Placeholder'] = {'PlaceholderColor3'}, ['Background/Button'] = {"BackgroundColor3", "BackgroundTransparency"}})
-                        ApplyColor(Slider.SliderFrame.LeftBar, {['Slider/LeftBar'] = {"BackgroundColor3", "BackgroundTransparency"}})
-                        ApplyColor(Slider.SliderFrame.RightBar, {['Slider/RightBar'] = {'BackgroundColor3', "BackgroundTransparency"}})
-                        ApplyColor(Slider.SliderFrame.LeftBar.Handle, {['Slider/Handle'] = {"BackgroundColor3", "BackgroundTransparency"}})
-                    end
-                end
-            end
+            ColorOption(Option)
         end
         for _, Keybind in Menu.Keybinds do
-            ApplyColor(Keybind.Object.Delete, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-            ApplyColor(Keybind.Object.Delete.Image, {['Main/Icons'] = {'ImageColor3', 'ImageTransparency'}})
-            ApplyColor(Keybind.Object.Background, {['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
-            ApplyColor(Keybind.Object.Background.KeybindName, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}})
-            ApplyColor(Keybind.Object.Background.BindButton, {['Text/Primary'] = {'TextColor3', 'TextTransparency'}, ['Background/Secondary'] = {'BackgroundColor3', 'BackgroundTransparency'}})
+			ColorKeybind(Keybind.Object)
         end
         for _, Button in Menu.Buttons do
             ApplyColor(Button.Object, {['Text/Primary'] = {'TextColor3', 'TextTransparency'},['Background/Button'] = {'BackgroundColor3', 'BackgroundTransparency'}})
@@ -4516,7 +4297,7 @@ end
 local ThemesDropdown
 
 do
-    function GuiMenu:CreateThemeDropdown(Properties)
+    function GuiMenu:CreateThemesDropdown(Properties)
         local Dropdown = {
 			Value = Properties.List[1],
             List = Properties.List,
@@ -4529,7 +4310,7 @@ do
 		Frame.Name = `{Properties.Name}Dropdown`
 		Frame.BackgroundTransparency = 1
 		Frame.Size = UDim2.new(1, -100, 0, 40)
-		Frame.LayoutOrder = #GuiMenu.Options + #GuiMenu.Keybinds
+		Frame.LayoutOrder = table.len(GuiMenu.Options) + table.len(GuiMenu.Keybinds)
 		Frame.Parent = GuiMenu.Object.ScrollingFrame
 
 		local Background = Instance.new("Frame")
@@ -4561,7 +4342,6 @@ do
 		TopBar.Parent = Background
 
 		local TopBarLabel = Instance.new("TextLabel")
-		TopBarLabel.Name = "NameLabel"
 		TopBarLabel.Size = UDim2.new(1, 0, 0, 30)
 		TopBarLabel.Position = UDim2.fromOffset(0, 5)
 		TopBarLabel.BackgroundColor3 = GetColor('Background/Secondary')
@@ -4675,7 +4455,7 @@ do
 
         function Dropdown:Add(Value)
             if not table.find(Dropdown.List, Value) then
-                table.insert(Dropdown.List, Value)
+				self.List[#self.List + 1] = Value
             end
         end
 
@@ -4704,6 +4484,7 @@ do
         PlusButton.MouseButton1Click:Connect(function()
             Dropdown:CreateButton({
                 Name = "new theme",
+				New = true,
                 CanDelete = true,
                 LayoutOrder = #CreatedButtons + 1,
             })
@@ -4728,17 +4509,25 @@ do
             AddTooltip(Button, Properties.CanDelete and "Left Click to select.\nRight Click to rename." or "Left Click to select.")
 
             if Properties.CanDelete then
-                local DeleteButton = Instance.new("ImageButton")
-                DeleteButton.Name = "Delete"
-                DeleteButton.BackgroundTransparency = 1
-                DeleteButton.Size = UDim2.fromOffset(30, 30)
-                DeleteButton.Position = UDim2.new(1, -40, 0, 0)
-                DeleteButton.ZIndex = 2
-                SetIcon(DeleteButton, "x")
-                DeleteButton.Parent = Button
-                AddTooltip(DeleteButton, "Click to remove from list")
+                local Delete = Instance.new("TextButton")
+                Delete.Name = "Delete"
+                Delete.BackgroundTransparency = 1
+                Delete.Size = UDim2.fromOffset(30, 30)
+                Delete.Position = UDim2.new(1, -30, 0, 0)
+                Delete.ZIndex = 2
+				Delete.Text = ''
+                Delete.Parent = Button
 
-                DeleteButton.MouseButton1Click:Connect(function()
+				local Image = Instance.new('ImageLabel')
+				Image.Name = 'Image'
+				Image.BackgroundTransparency = 1
+				Image.Size = UDim2.fromOffset(24, 24)
+				Image.Position = UDim2.fromOffset(3, 3)
+				Image.ZIndex = 2
+				SetIcon(Image, 'x')
+				Image.Parent = Delete
+
+                Delete.MouseButton1Click:Connect(function()
                     Tooltip.Visible = false
                     Dropdown:Remove(Properties.Name)
                     local Index = table.find(CreatedButtons, Button)
@@ -4783,7 +4572,7 @@ do
                     end)
                 end
 
-                if Properties.Name == "new theme" then
+                if Properties.New then
                     Select()
                 else
                     Dropdown:Add(Properties.Name)
@@ -4796,7 +4585,7 @@ do
 				Dropdown:SetValue(Properties.Name)
 			end)
 
-            table.insert(CreatedButtons, Button)
+			CreatedButtons[#CreatedButtons + 1] = Button
         end
 
 		function Dropdown:Expand()
@@ -4814,7 +4603,7 @@ do
 					for i, v in Dropdown.List do
                         Dropdown:CreateButton({
                             Name = v,
-                            CanDelete = v ~= "TidalWave",
+                            CanDelete = not BuiltInThemes[v],
                             LayoutOrder = i,
                         })
 					end
@@ -4842,12 +4631,27 @@ do
 		local Name = Properties.Name:gsub(' ', '')
 
 		function Dropdown:Save(Tab)
-			Tab[Name] = Dropdown.Value
+			Tab[Name] = {
+				List = self.List,
+				Value = self.Value
+			}
 		end
 
-		function Dropdown:Load(Value)
-			if Dropdown.Value ~= Value then
-				Dropdown:SetValue(Value)
+		function Dropdown:Load(Tab)
+			self.List = Tab.List
+			self:SetValue(Tab.Value)
+			if self.Expanded then
+				for _, v in CreatedButtons do
+					v:Destroy()
+				end
+				table.clear(CreatedButtons)
+				for i, v in Dropdown.List do
+					Dropdown:CreateButton({
+						Name = v,
+						CanDelete = not BuiltInThemes[v],
+						LayoutOrder = i,
+					})
+				end
 			end
 		end
 
@@ -4874,17 +4678,19 @@ do
 
     local ColorPickers = {}
 
-    ThemesDropdown = GuiMenu:CreateThemeDropdown({
+    ThemesDropdown = GuiMenu:CreateThemesDropdown({
         Name = "Theme",
         List = {"TidalWave"},
         Function = function(Value)
             if not Gui.Themes[Value] then
-                Gui.Themes[Value] = table.clone(BuiltInThemes.TidalWave)
+				local NewTheme = table.clone(BuiltInThemes.TidalWave)
+				NewTheme.BuiltIn = nil
+				Gui.Themes[Value] = NewTheme
             end
             Gui.Theme = Value
             UpdateTheme()
             for _, v in ColorPickers do
-                v:SetVisible(Value ~= "TidalWave")
+                v:SetVisible(not BuiltInThemes[Value])
             end
         end
     })
@@ -4895,6 +4701,7 @@ do
 			ColorPickers[#ColorPickers + 1] = GuiMenu:CreateColorPicker({
                 Name = i == "Main" and i2 or `{i} {i2}`,
                 Default = v2.Color,
+				Transparency = v2.Transparency,
                 Visible = false,
                 Function = function(Color, Transparency)
                     SetColor(`{i}/{i2}`, Color, Transparency)
@@ -4962,44 +4769,6 @@ Run(function()
         Max = 24,
         Function = function(Val)
             Tooltip.TextSize = Val
-        end
-    })
-
-    TooltipOptions:CreateSlider({
-        Name = "Background Transparency",
-        Default = 0.2,
-        Min = 0,
-        Max = 1,
-        Decimal = 100,
-        Function = function(Val)
-            Tooltip.BackgroundTransparency = Val
-        end
-    })
-
-    TooltipOptions:CreateColorPicker({
-        Name = "Background Color",
-        Default = GetColor('Background/Tooltip'),
-        Function = function(Color)
-            Tooltip.BackgroundColor3 = Color
-        end
-    })
-
-    TooltipOptions:CreateSlider({
-        Name = "Outline Transparency",
-        Default = 0.2,
-        Min = 0,
-        Max = 1,
-        Decimal = 100,
-        Function = function(Val)
-            TooltipUIStroke.Transparency = Val
-        end
-    })
-
-    TooltipOptions:CreateColorPicker({
-        Name = "Outline Color",
-        Default = GetColor('Outline/Tooltip'),
-        Function = function(Color)
-            TooltipUIStroke.Color = Color
         end
     })
 end)
@@ -5078,7 +4847,7 @@ Run(function()
 				end
 				DragDetector.Parent = v
 				local UIStroke = Instance.new("UIStroke")
-				UIStroke.Color = Color3.fromRGB(255, 255, 255)
+				UIStroke.Color = Color3.White
 				UIStroke.Thickness = 2
 				UIStroke.BorderStrokePosition = Enum.BorderStrokePosition.Inner
 				UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -5151,6 +4920,34 @@ Run(function()
 		Default = true,
 		Function = function(Enabled)
 			ModuleList:Enable(Enabled)
+		end
+	})
+
+	ModuleListEnabled:CreateTextBox({
+		Name = 'Text',
+		Text = `<font color = 'rgb(255, 215, 0)'>Tidal</font> <font color = 'rgb(20, 135, 255)'>Wave</font> v{Gui.CurrentVersion}`,
+		Placeholder = '[cool watermark text whatever]',
+		Function = function(Text)
+			ModuleList:SetWatermarkText(Text)
+		end
+	})
+
+	ModuleListEnabled:CreateButton({
+		Name = 'Reset Text',
+		Info = 'Changes the text back to default.',
+		Function = function()
+			ModuleList:SetWatermarkText(`<font color = 'rgb(255, 215, 0)'>Tidal</font> <font color = 'rgb(20, 135, 255)'>Wave</font> v{Gui.CurrentVersion}`)
+		end
+	})
+
+	ModuleListEnabled:CreateSlider({
+		Name = 'Scale',
+		Default = 1,
+		Min = 0.6,
+		Max = 2,
+		Decimal = 100,
+		Function = function(Val)
+			ModuleList:SetScale(Val)
 		end
 	})
 
@@ -5403,7 +5200,7 @@ ModulesTopBar = CreateTopBarButton({
 	end,
 })
 ModulesTopBar:Select(false)
-SelectedTopBar = ModulesTopBar.Object
+Gui.SelectedTopBar = ModulesTopBar.Object
 
 local ConfigTopBar = CreateTopBarButton({
 	Name = "Config",
@@ -5450,7 +5247,7 @@ local function LoadThemes(JSON)
         for CategoryName, Category in Theme do
             NewThemes[ThemeName][CategoryName] = {}
             for ColorName, Color in Category do
-                NewThemes[ThemeName][CategoryName][ColorName] = rgbt(Color.R, Color.G, Color.B, Color.T)
+                NewThemes[ThemeName][CategoryName][ColorName] = Color3.fromRGBT(Color.R, Color.G, Color.B, Color.T)
             end
         end
     end
@@ -5496,7 +5293,7 @@ function Gui:Load(Profile)
 
     for i, v in Gui.Themes do
         Index += 1
-        if i ~= "TidalWave" then
+        if not v.BuiltIn then
             if ThemesDropdown.Expanded then
                 ThemesDropdown:CreateButton({
                     Name = i,
@@ -5546,11 +5343,8 @@ function Gui:Load(Profile)
     for i, v in Config.Categories do
         local Category = Gui.Categories[i]
         if Category then
-            local Pos = TableToUDim2(v.Location)
-            Category:SetOpenedPosition(Pos)
-			if CategoryHolder.Visible and not Category:IsMoving() then
-				Category.Object.Position = Pos
-			end
+			local Position = TableToUDim2(v.Location)
+            Category:SetOpenedPosition(Position)
             if Category.Expanded ~= v.Expanded then
                 Category:Expand(true)
             end
@@ -5608,9 +5402,9 @@ end
 local function SaveThemes()
     local Tab = {}
     for i, v in Gui.Themes do
+		if v.BuiltIn then continue end
         Tab[i] = {}
         for i2, v2 in v do
-            if i2 == "BuiltIn" then continue end
             Tab[i][i2] = {}
             for i3, v3 in v2 do
                 Tab[i][i2][i3] = {
@@ -5645,7 +5439,7 @@ function Gui:Save(Profile)
 	local Config = {
 		Scale = Gui.Scale,
 		Profile = Profile or Gui.Profile or "Default",
-		Profiles = Gui.Profiles or {},
+		Profiles = Gui.Profiles or {'Default'},
         Friends = Gui.Friends or {},
         Fonts = {
             Regular = Gui.Fonts.Regular.Name,
@@ -5684,10 +5478,10 @@ function Gui:Save(Profile)
         Config.HudLocations[v.Name] = UDim2ToTable(v.Position)
     end
 
-    for i, v in Gui.Categories do
-        Config.Categories[i] = {
-            Location = UDim2ToTable(v.Object.Position),
-            Expanded = v.Expanded
+    for Name, Category in Gui.Categories do
+        Config.Categories[Name] = {
+            Location = UDim2ToTable(Category.OpenedPosition),
+            Expanded = Category.Expanded
         }
     end
 
@@ -5723,7 +5517,7 @@ function ProfilesMenu:CreateProfileButton(Properties)
 	Frame.Name = `{Properties.Name}Button`
 	Frame.BackgroundTransparency = 1
 	Frame.Size = UDim2.new(1, -100, 0, 40)
-	Frame.LayoutOrder = Properties.LayoutOrder or #ProfilesMenu.Options
+	Frame.LayoutOrder = Properties.LayoutOrder or table.len(ProfilesMenu.Options)
 	Frame.Parent = ProfilesMenu.Object.ScrollingFrame
 
 	local Background = Instance.new("Frame")
@@ -5734,7 +5528,6 @@ function ProfilesMenu:CreateProfileButton(Properties)
 	AddCorner(Background, UDim.new(0, 7))
 
 	local NameLabel = Instance.new("TextButton")
-	NameLabel.Name = "NameLabel"
 	NameLabel.BackgroundTransparency = 1
 	NameLabel.Size = UDim2.fromOffset(400, 40)
 	NameLabel.Position = UDim2.fromOffset(5, 0)
@@ -5809,8 +5602,6 @@ function ProfilesMenu:CreateProfileButton(Properties)
 	AddCorner(Save, UDim.new(0, 7))
 	AddHighlight(Save, true)
 
-	local LastClick
-
 	local function Select()
 		NameLabel.TextTransparency = 1
 		RenameTextBox.Text = Properties.Name
@@ -5819,21 +5610,30 @@ function ProfilesMenu:CreateProfileButton(Properties)
 		RenameTextBox.SelectionStart = 0
 		RenameTextBox.CursorPosition = #RenameTextBox.Text + 1
 		RenameTextBox.FocusLost:Once(function()
-			if writefile and readfile then
-                if not table.find(Gui.Profiles, RenameTextBox.Text) then
-                    table.insert(Gui.Profiles, RenameTextBox.Text)
-                end
-				Gui:Save(RenameTextBox.Text)
-				if deletefile then
-					deletefile(`TidalWave/Profiles/{Properties.Name}.json`)
+			local Text
+			if table.find(Gui.Profiles, RenameTextBox.Text) then
+				local Start, End = RenameTextBox.Text:find('%d+$')
+				if Start then
+					Text = RenameTextBox.Text:sub(1, Start - 1)..tostring(tonumber(RenameTextBox.Text:sub(Start, End)))
+				else
+					Text = RenameTextBox.Text..'2'
 				end
 			else
-				NotifyPoopSploit((not writefile and "writefile" or "") .. (not writefile and not readfile and ", " or "") .. (not readfile and "readfile" or ""))
+				Text = RenameTextBox.Text
+			end
+			Gui.Profiles[#Gui.Profiles + 1] = Text
+			Gui:Save(Text)
+			if delfile then
+				delfile(`TidalWave/Profiles/{Properties.Name}{game.PlaceId}.json`)
+			end
+			local Index = table.find(Gui.Profiles, Properties.Name)
+			if Index then
+				table.remove(Gui.Profiles, Index)
 			end
 			RenameTextBox.Visible = false
-			NameLabel.Text = RenameTextBox.Text
+			NameLabel.Text = Text
 			NameLabel.TextTransparency = 0
-			Properties.Name = RenameTextBox.Text
+			Properties.Name = Text
 		end)
 	end
 
@@ -5841,9 +5641,12 @@ function ProfilesMenu:CreateProfileButton(Properties)
 		Select()
 	end
 
+	local LastClick = 0
+
 	NameLabel.MouseButton1Click:Connect(function()
-		if LastClick and os.clock() - LastClick <= 0.5 then
+		if os.clock() - LastClick <= 0.5 then
 			Select()
+			LastClick = 0
 		else
 			LastClick = os.clock()
 		end
@@ -5858,16 +5661,19 @@ function ProfilesMenu:CreateProfileButton(Properties)
 	end)
 
 	DeleteButton.MouseButton1Click:Connect(function()
-		if not deletefile then NotifyPoopSploit("deletefile") return end
-		local Name = Properties.Name
-		local Path = `TidalWave/Profiles/{Properties.Name}.json`
+		if not delfile then NotifyPoopSploit("delfile") return end
+		local Path = `TidalWave/Profiles/{Properties.Name}{game.PlaceId}.json`
 		Tooltip.Visible = false
 		if isfile then
 			if isfile(Path) then
-				deletefile(Path)
+				delfile(Path)
 			end
 		else
-			pcall(deletefile, Path)
+			pcall(delfile, Path)
+		end
+		local Index = table.find(Gui.Profiles, Properties.Name)
+		if Index then
+			table.remove(Gui.Profiles, Index)
 		end
 		Frame:Destroy()
 	end)
@@ -5878,7 +5684,7 @@ local ProfilesTopBar = CreateTopBarButton({
 	Function = function()
 		HideMenus("Profiles")
 		StopEditingHudPositions()
-		for i, v in ProfilesMenu.Object.ScrollingFrame:GetChildren() do
+		for _, v in ProfilesMenu.Object.ScrollingFrame:GetChildren() do
 			if v:IsA("GuiObject") then
 				v:Destroy()
 			end
@@ -5893,7 +5699,7 @@ local ProfilesTopBar = CreateTopBarButton({
 		local PlusButton = Instance.new("TextButton")
 		PlusButton.Name = "Plus"
 		PlusButton.BackgroundColor3 = GetColor('Background/Button')
-		PlusButton.Text = ""
+		PlusButton.Text = ''
 		PlusButton.BorderSizePixel = 0
 		PlusButton.Size = UDim2.fromOffset(40, 40)
 		PlusButton.AutoButtonColor = false
@@ -5911,6 +5717,15 @@ local ProfilesTopBar = CreateTopBarButton({
 		PlusImage.Parent = PlusButton
 
 		PlusButton.MouseButton1Click:Connect(function()
+			local Name = 'new profile'
+			if table.find(Gui.Profiles, Name) then
+				for i = 1, 100 do
+					if not table.find(Gui.Profiles, Name..tostring(i)) then
+						Name ..= tostring(i)
+						break
+					end
+				end
+			end
 			ProfilesMenu:CreateProfileButton({
 				Name = "new profile",
 				New = true,
@@ -5928,7 +5743,7 @@ function FriendsMenu:CreateFriendButton(Properties)
 	Frame.Name = `{Properties.Name}Button`
 	Frame.BackgroundTransparency = 1
 	Frame.Size = UDim2.new(1, -100, 0, 40)
-	Frame.LayoutOrder = Properties.LayoutOrder or #FriendsMenu.Options
+	Frame.LayoutOrder = Properties.LayoutOrder or table.len(FriendsMenu.Options)
 	Frame.Parent = FriendsMenu.Object.ScrollingFrame
 
 	local Background = Instance.new("Frame")
@@ -5939,7 +5754,6 @@ function FriendsMenu:CreateFriendButton(Properties)
 	AddCorner(Background, UDim.new(0, 7))
 
 	local NameLabel = Instance.new("TextButton")
-	NameLabel.Name = "NameLabel"
 	NameLabel.BackgroundTransparency = 1
 	NameLabel.Size = UDim2.fromOffset(400, 40)
 	NameLabel.Position = UDim2.fromOffset(5, 0)
@@ -6010,8 +5824,6 @@ function FriendsMenu:CreateFriendButton(Properties)
 	AddCorner(Rename, UDim.new(0, 7))
 	AddHighlight(Rename, true)
 
-	local LastClick
-
 	local function Select()
 		NameLabel.TextTransparency = 1
 		RenameTextBox.Text = Properties.Name
@@ -6035,7 +5847,7 @@ function FriendsMenu:CreateFriendButton(Properties)
 	NameLabel.MouseButton1Click:Connect(function()
 		Enabled = not Enabled
         EnabledBar.BackgroundColor3 = Enabled and GetColor('Main/EnabledBar') or GetColor('Main/DisabledBar')
-        Gui.Friends[Properties.Name] = false
+        Gui.Friends[Properties.Name] = Enabled
 	end)
 
 	Rename.MouseButton1Click:Connect(function()
@@ -6083,7 +5895,6 @@ local FriendsTopBar = CreateTopBarButton({
 })
 
 local MouseEnabledCon, UpdateCursorCon, HeldModule
-local PressedKeys = {}
 
 local function OnMouseEnableChanged()
 	if UIS.MouseIconEnabled then
@@ -6094,7 +5905,7 @@ local function OnMouseEnableChanged()
 		Cursor.Visible = false
 	else
 		Cursor.Visible = true
-		UpdateCursorCon = Mouse.Move:Connect(function()
+		UpdateCursorCon = RunService.PreRender:Connect(function()
 			local MouseLocation = UIS:GetMouseLocation()
 			Cursor.Position = UDim2.fromOffset(MouseLocation.X, MouseLocation.Y)
 		end)
@@ -6120,13 +5931,10 @@ local function StartCursorCon()
 end
 
 local function CheckKeybind(Keybind, LatestInput)
-	if not Keybind or Keybind == "None" then return false end
-	Keybind = Keybind:split("+")
-	if table.find(Keybind, LatestInput) then
-		for _, v in Keybind do
-			if not table.find(PressedKeys, v) then
-				return false
-			end
+	if Keybind == 'None' then return false end
+	if Keybind:match(LatestInput) then
+		for _, v in Keybind:split('+') do
+			if not Gui.PressedKeys[v] then return false end
 		end
 		return true
 	end
@@ -6134,12 +5942,21 @@ local function CheckKeybind(Keybind, LatestInput)
 	return false
 end
 
-local AllowedUserInputTypes = {
-    ["MouseButton1"] = "MouseButton1",
-    ["MouseButton2"] = "MouseButton2",
-    ["MouseButton3"] = "MouseButton3",
-    ["MouseWheel"] = "MouseWheel",
+local UserInputTypes = {
+    ["MouseButton1"] = true,
+    ["MouseButton2"] = true,
+    ["MouseButton3"] = true,
 }
+
+local function Concat(Tab, Char)
+	local String = ''
+	local Index = 0
+	for Name in Tab do
+		Index += 1
+		String ..= (String ~= '' and Char or '') .. Name
+	end
+	return String
+end
 
 Gui:Clean(UIS.InputBegan:Connect(function(Input)
 	local TextBox = UIS:GetFocusedTextBox()
@@ -6147,14 +5964,14 @@ Gui:Clean(UIS.InputBegan:Connect(function(Input)
 	if Gui.Binding and ((Input.KeyCode == Enum.KeyCode.Unknown and not AllowMouseBinding.Enabled) or Input.KeyCode == Enum.KeyCode.Escape) then
 		Gui.Binding:SetKeybind(Gui.Binding.Keybind)
 		Gui.Binding = nil
-	elseif ((AllowMouseBinding.Enabled and AllowedUserInputTypes[Input.UserInputType.Name] or Input.KeyCode ~= Enum.KeyCode.Unknown) and Input.KeyCode ~= Enum.KeyCode.Escape) then
-        local Key = Input.KeyCode == Enum.KeyCode.Unknown and AllowMouseBinding.Enabled and AllowedUserInputTypes[Input.UserInputType.Name] or Input.KeyCode.Name
-		table.insert(PressedKeys, Key)
+	elseif ((Input.KeyCode ~= Enum.KeyCode.Unknown or AllowMouseBinding.Enabled and UserInputTypes[Input.UserInputType.Name]) and Input.KeyCode ~= Enum.KeyCode.Escape) then
+        local Key = Input.KeyCode == Enum.KeyCode.Unknown and Input.UserInputType.Name or Input.KeyCode.Name
+		Gui.PressedKeys[Key] = true
 		if Gui.Binding then
-			Gui.Binding:SetKeybind(table.concat(PressedKeys, "+"))
+			Gui.Binding:SetKeybind(Concat(Gui.PressedKeys, '+'))
 		else
 			local ConfigKeybinds = Gui.Menus.Config.Keybinds
-			if (ConfigKeybinds.Menu.Keybind and CheckKeybind(Gui.Menus.Config.Keybinds.Menu.Keybind, Key)) or (ConfigKeybinds.Menu2.Keybind and CheckKeybind(Gui.Menus.Config.Keybinds.Menu2.Keybind, Key)) then
+			if ConfigKeybinds.Menu:Check(Input) or ConfigKeybinds.Menu2:Check(Input) then
 				if MenuOptionsMenu.Object.Visible then
                     MenuOptionsMenu.Object.Visible = false
                     for i, v in Gui.Menus do
@@ -6166,7 +5983,7 @@ Gui:Clean(UIS.InputBegan:Connect(function(Input)
                     return
 				end
                 local Menu
-				for i, v in Gui.Menus do
+				for _, v in Gui.Menus do
 					if v.Object.Visible then
 						Menu = v
 					end
@@ -6195,11 +6012,11 @@ Gui:Clean(UIS.InputBegan:Connect(function(Input)
 					Modal.Visible = true
 				end
 			else
+				if TopBar.Visible and UserInputTypes[Key] then return end
 				for _, Module in Gui.Modules do
-                    if TopBar.Visible and AllowedUserInputTypes[Module.Keybind] then continue end
 					if CheckKeybind(Module.Keybind, Key) then
 						if Module.Hold then
-							HeldModule = {Module = Module, Keybind = Module.Keybind}
+							HeldModule = Module
 							if not Module.Enabled then
 								Module:Toggle()
 							end
@@ -6209,7 +6026,6 @@ Gui:Clean(UIS.InputBegan:Connect(function(Input)
 					end
 				end
                 for _, Button in Gui.Buttons do
-					if TopBar.Visible and AllowedUserInputTypes[Button.Keybind] then continue end
 					if CheckKeybind(Button.Keybind, Key) then
 						Button:Toggle()
 					end
@@ -6219,23 +6035,20 @@ Gui:Clean(UIS.InputBegan:Connect(function(Input)
 	end
 end))
 
-UIS.InputEnded:Connect(function(Input)
-    local Key = Input.KeyCode == Enum.KeyCode.Unknown and AllowMouseBinding.Enabled and AllowedUserInputTypes[Input.UserInputType.Name] or Input.KeyCode.Name
-	local Index = table.find(PressedKeys, Key)
-	if not Index then return end
-	table.remove(PressedKeys, Index)
+Gui:Clean(UIS.InputEnded:Connect(function(Input)
+	if Input.KeyCode == Enum.KeyCode.Unknown and not AllowMouseBinding.Enabled then return end
+    local Key = Input.KeyCode == Enum.KeyCode.Unknown and Input.UserInputType.Name or Input.KeyCode.Name
+	Gui.PressedKeys[Key] = nil
 	if Gui.Binding then
 		Gui.Binding = nil
-		table.clear(PressedKeys)
-	else
-		if HeldModule and table.find(HeldModule.Keybind:split("+"), Key) then
-			if HeldModule.Module.Enabled then
-				HeldModule.Module:Toggle()
-			end
-			HeldModule = nil
+		table.clear(Gui.PressedKeys)
+	elseif HeldModule and HeldModule.Keybind:match(Key) then
+		if HeldModule.Enabled then
+			HeldModule:Toggle()
 		end
+		HeldModule = nil
 	end
-end)
+end))
 
 Gui:CreateCategory({
 	Name = "Combat"
@@ -6273,41 +6086,42 @@ Gui:CreateCategory({
 	Name = "Server"
 })
 
-local Search = Instance.new("TextBox")
-Search.Text = ""
-Search.Name = "Search"
-Search.LayoutOrder = #TopBar:GetChildren()
-Search.Size = UDim2.fromOffset(160, 36)
-Search.BackgroundColor3 = GetColor("Background/Button")
-Search.BackgroundTransparency = 0.25
-Search.BorderSizePixel = 0
-Search.TextColor3 = GetColor("Text/Primary")
-Search.FontFace = GetFont('Regular')
-Search.TextSize = 24
-Search.TextXAlignment = Enum.TextXAlignment.Left
-Search.ClearTextOnFocus = false
-Search.PlaceholderText = "Search"
-Search.PlaceholderColor3 = GetColor("Text/Placeholder")
-Search.Parent = TopBar
-AddCorner(Search, UDim.new(0, 9))
-TopBar.Size += UDim2.fromOffset(168, 0)
-
-Search:GetPropertyChangedSignal("Text"):Connect(function()
-    local Text = Search.Text:lower():gsub(" ", "")
-    local Blank = Text:match("%w+") == nil
-
-    for _, Category in Gui.Categories do
-        for _, Button in Category.Object.ScrollingFrame:GetChildren() do
-            if IsTextObject(Button) then
-                local Match = Button.Text:lower():gsub(" ", ""):match(Text)
-                Button.BackgroundColor3 = Match and not Blank and GetColor("Background/ButtonHover") or GetColor("Background/Button")
-                SearchMatches[Button] = if Blank then nil else Match ~= nil or nil
-            end
-        end
-    end
-end)
-
 Run(function()
+	local Search = Instance.new("TextBox")
+	Search.Text = ""
+	Search.Name = "Search"
+	Search.LayoutOrder = #TopBar:GetChildren()
+	Search.Size = UDim2.fromOffset(160, 36)
+	Search.BackgroundColor3 = GetColor("Background/Button")
+	Search.BackgroundTransparency = 0.25
+	Search.BorderSizePixel = 0
+	Search.TextColor3 = GetColor("Text/Primary")
+	Search.FontFace = GetFont('Regular')
+	Search.TextSize = 24
+	Search.TextXAlignment = Enum.TextXAlignment.Left
+	Search.ClearTextOnFocus = false
+	Search.PlaceholderText = "Search"
+	Search.PlaceholderColor3 = GetColor("Text/Placeholder")
+	Search.Parent = TopBar
+	AddCorner(Search, UDim.new(0, 9))
+	TopBar.Size += UDim2.fromOffset(168, 0)
+
+	Search:GetPropertyChangedSignal("Text"):Connect(function()
+		local Text = Search.Text:lower():gsub(" ", "")
+		local Blank = Text:match("%w+") == nil
+
+		for _, Category in Gui.Categories do
+			for _, Button in Category.Object.ScrollingFrame:GetChildren() do
+				if IsTextObject(Button) then
+					local ButtonText = Button.Text:lower():gsub(" ", "")
+					local Match = ButtonText:match(Text) or Text:match(ButtonText)
+					Button.BackgroundColor3 = Match and not Blank and GetColor("Background/ButtonHover") or GetColor("Background/Button")
+					SearchMatches[Button] = if Blank then nil else Match ~= nil or nil
+				end
+			end
+		end
+	end)
+
     local UIPadding = Instance.new("UIPadding")
     UIPadding.PaddingLeft = UDim.new(0, 8)
     UIPadding.Parent = Search
@@ -6320,5 +6134,11 @@ Run(function()
 	SetIcon(Icon, "search")
 	Icon.Parent = Search
 end)
+
+Gui:Clean(Players.PlayerRemoving:Connect(function(Player)
+	if Player == Plr then
+		Gui:Save()
+	end
+end))
 
 return Gui
