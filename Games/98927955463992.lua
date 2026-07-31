@@ -89,7 +89,7 @@ Run(function() -- Combat
                     while ProjectileAura.Enabled do
                         if CharacterLib.Alive then
                             if not Tool or (Tool and Tool.Parent == nil) then
-                                Tool = CharacterLib.Character:FindFirstChildOfClass('Tool')
+                                Tool = CharacterLib.Character:FindFirstChildOfClass('Tool') or Plr.Backpack:FindFirstChildOfClass('Tool')
                             elseif Tool and Tool.Parent == Plr.Backpack and AutoEquipGun.Enabled then
                                 CharacterLib.Humanoid:EquipTool(Tool)
                                 task.wait()
