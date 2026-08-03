@@ -59,7 +59,7 @@ local isfile = isfile
 local writefile = writefile
 local delfile = delfile
 local listfiles = listfiles
-local gethui = gethui
+local gethui = gethui or function() return (CoreGui and CoreGui:FindFirstChild('RobloxGui')) or CoreGui or Plr:FindFirstChildOfClass('PlayerGui') end
 
 if isfile('TidalWave/Libraries/Lucide.lua') then
 	Lucide = loadstring(readfile('TidalWave/Libraries/Lucide.lua'), 'Lucide')()
@@ -446,7 +446,7 @@ ScreenGui.IgnoreGuiInset = true
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 69420
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-ScreenGui.Parent = gethui and gethui() or CoreGui and CoreGui:FindFirstChild("RobloxGui") or CoreGui or Plr:FindFirstChildOfClass("PlayerGui")
+ScreenGui.Parent = gethui()
 Gui.Gui = ScreenGui
 
 local ScaledGui = Instance.new("Frame")

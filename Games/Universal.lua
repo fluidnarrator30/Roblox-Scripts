@@ -39,7 +39,9 @@ local IsStudio = RunService:IsStudio()
 
 local Plr: Player = Players.LocalPlayer
 local Camera: Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
-local Color3 = Color3
+local Color3 = table.clone(Color3)
+Color3.White = Color3.new(1, 1, 1)
+Color3.Black = Color3.new(0, 0, 0)
 local CFrame = CFrame
 local math = math
 local table = table
@@ -50,7 +52,6 @@ local Instance = Instance
 local Enum = Enum
 local tostring = tostring
 local Path2DControlPoint = Path2DControlPoint
-local White = Color3.fromRGB(255, 255, 255)
 local vector = table.clone(vector)
 vector.xAxis = vector.create(1, 0, 0)
 vector.yAxis = vector.create(0, 1, 0)
@@ -319,150 +320,6 @@ Run(function() -- Combat
         })
     end)
 
-    Run(function() -- Aimbot
-        local Aimbot, WallCheck, Part, Fov, Circle, CircleObject, OutlineColor, FillColor, OutlineTransparency, FillTransparency, Thickness
-
-        local function CreateCircle()
-            CircleObject = Drawing.new("Circle")
-            CircleObject.Radius = Fov.Value
-            CircleObject.FillTransparency = FillTransparency.Value
-            CircleObject.OutlineTransparency = OutlineTransparency.Value
-            CircleObject.FillColor = FillColor.Color
-            CircleObject.OutlineColor = OutlineColor.Color
-            CircleObject.Thickness = Thickness.Value
-            CircleObject.Position = UIS:GetMouseLocation()
-            CircleObject.Visible = Aimbot.Enabled
-            CircleObject.Parent = TidalWave.Gui
-        end
-
-        local function RemoveCircle()
-            if CircleObject then
-                CircleObject:Destroy()
-                CircleObject = nil
-            end
-        end
-
-        local function UpdateCircle()
-            if CircleObject then
-                CircleObject.Radius = Fov.Value
-                CircleObject.FillTransparency = FillTransparency.Value
-                CircleObject.OutlineTransparency = OutlineTransparency.Value
-                CircleObject.FillColor = FillColor.Color
-                CircleObject.OutlineColor = OutlineColor.Color
-                CircleObject.Thickness = Thickness.Value
-            end
-        end
-
-        Aimbot = Combat:CreateModule({
-            Name = "Aimbot",
-            Info = "Automatically aims your camera towards the closest player.",
-            Function = function(Enabled)
-                if Enabled then
-                    if Circle.Enabled and not CircleObject then
-                        CreateCircle()
-                    end
-                    
-                    Aimbot:Clean(RunService.PreRender:Connect(function()
-                        if CircleObject then
-                            CircleObject.Position = UIS:GetMouseLocation()
-                        end
-                        if CharacterLib.Alive and CanClick() then
-                            local Character = CharacterLib:GetClosestCharacterWithinMouse({
-                                Part = Part.Value,
-                                Range = Fov.Value,
-                                Origin = Camera.CFrame.Position,
-                                WallCheck = WallCheck.Enabled,
-                                NPCS = true,
-                                Players = true
-                            })
-
-                            if Character then
-                                Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, Character[Part.Value].Position)
-                            end
-                        end
-                    end))
-                else
-                    RemoveCircle()
-                end
-            end
-        })
-
-        WallCheck = Aimbot:CreateToggle({
-            Name = "Wall Check",
-            Default = true
-        })
-
-        Part = Aimbot:CreateDropdown({
-            Name = "Part",
-            List = {"Head", "Root"}
-        })
-
-        Fov = Aimbot:CreateSlider({
-            Name = "Fov",
-            Default = 100,
-            Min = 0,
-            Max = 1000,
-            Function = UpdateCircle
-        })
-
-        Circle = Aimbot:CreateToggle({
-            Name = "Circle",
-            Function = function(Enabled)
-                if Enabled and Aimbot.Enabled then
-                    CreateCircle()
-                else
-                    RemoveCircle()
-                end
-                for _, v in {Fov, Thickness, OutlineTransparency, FillTransparency, OutlineColor, FillColor} do
-                    v:SetVisible(Enabled)
-                end
-            end
-        })
-
-        Thickness = Aimbot:CreateSlider({
-            Name = "Thickness",
-            Default = 1,
-            Min = 1,
-            Max = 10,
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        OutlineTransparency = Aimbot:CreateSlider({
-            Name = "Outline Transparency",
-            Default = 0,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        FillTransparency = Aimbot:CreateSlider({
-            Name = "Fill Transparency",
-            Default = 1,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        OutlineColor = Aimbot:CreateColorPicker({
-            Name = "Outline Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        FillColor = Aimbot:CreateColorPicker({
-            Name = "Fill Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
-            Function = UpdateCircle
-        })
-    end)
-
     Run(function() -- TriggerBot
         local TriggerBot, MouseButton, Mode, Held
 
@@ -483,8 +340,10 @@ Run(function() -- Combat
                         local Character = Raycast and Raycast.Instance.Parent.ClassName == 'Model' and CharacterLib:FindCharacter(Raycast.Instance.Parent)
                         if Character and not Character.Teammate and CharacterLib:CanAttack(Character) then
                             if Mode.Value == 'Hold' then
-                                (MouseButton.Value == 'LeftClick' and mouse1press or mouse2press)()
-                                Held = true
+                                if not Held then
+                                    (MouseButton.Value == 'LeftClick' and mouse1press or mouse2press)()
+                                    Held = true
+                                end
                             else
                                 (MouseButton.Value == 'LeftClick' and mouse1click or mouse2click)()
                             end
@@ -580,61 +439,71 @@ Run(function() -- Combat
     end)
     
     Run(function() -- HitboxExpander
-        local HitboxExpander, Target, Color, Transparency, X, Y, Z, Size
+        local HitboxExpander, Target, Color, X, Y, Z, NoCollision
 
         local Parts = {}
+        local db = {}
+        local Size
+
+        local function AddPart(Part)
+            local Tab = {
+                Size = Part.Size,
+                Color = Part.Color,
+                CanCollide = Part.CanCollide
+            }
+            Part.Size = Size
+            Part.Color = Color.Color
+            Part.Transparency = Color.Transparency
+
+            if NoCollision.Enabled then
+                Part.CanCollide = false
+            end
+            HitboxExpander:Clean(Part.Changed:Connect(function(Property)
+                if db[Part] then return end
+                db[Part] = true
+                if Tab[Property] then
+                    Tab[Property] = Part[Property]
+                end
+                if Property == 'CanCollide' and NoCollision.Enabled then
+                    Part.CanCollide = false
+                end
+                db[Part] = nil
+            end))
+
+            Parts[Part] = Tab
+        end
 
         HitboxExpander = Combat:CreateModule({
             Name = "HitboxExpander",
-            Info = "Expands the hitbox of other players",
-            Enabled = function()
-                HitboxExpander:Clean(RunService.PreSimulation:Connect(function()
-                    for _, Player in CharacterLib.List do
-                        if Player.Teammate then continue end
-                        
-                        if Target.Value == "Head" then
-                            if not Player.Head then continue end
-                            if not Parts[Player.Head] then
-                                Parts[Player.Head] = {
-                                    Size = Player.Head.Size,
-                                    Color = Player.Head.Color
-                                }
-                            end
-                            Player.Head.Size = Size
-                            Player.Head.Color = Color.Color
-                            Player.Head.Transparency = Transparency.Value
-                        elseif Target.Value == "RootPart" then
-                            if not Player.Root then continue end
-                            if not Parts[Player.Root] then
-                                Parts[Player.Root] = {
-                                    Size = Player.Root.Size,
-                                    Color = Player.Root.Color
-                                }
-                            end
-                            Player.Root.Size = Size
-                            Player.Root.Color = Color.Color
-                            Player.Root.Transparency = Transparency.Value
-                        elseif Target.Value == "All" then
-                            for _, Part in Player.Character:QueryDescendants("BasePart") do
-                                if not Parts[Part] then
-                                    Parts[Part] = {
-                                        Size = Part.Size,
-                                        Color = Part.Color
-                                    }
+            Info = "Expands the hitbox of enemies.",
+            Function = function(Enabled)
+                if Enabled then
+                    HitboxExpander:Clean(RunService.PreSimulation:Connect(function()
+                        for _, Player in CharacterLib.List do
+                            if Player.Teammate then continue end
+                            if Target.Value == "Head" then
+                                if Player.Head then
+                                    AddPart(Player.Head)
                                 end
-                                Part.Size = Size
-                                Part.Color = Color.Color
-                                Part.Transparency = Transparency.Value
+                            elseif Target.Value == "RootPart" then
+                                if Player.Root then
+                                    AddPart(Player.Root)
+                                end
+                            elseif Target.Value == "All" then
+                                for _, Part in Player.Character:QueryDescendants("BasePart") do
+                                    AddPart(Part)
+                                end
                             end
                         end
-                    end
-                end))
-                HitboxExpander:Clean(function()
+                    end))
+                else
                     for Part, v in Parts do
                         Part.Size = v.Size
                         Part.Color = v.Color
                     end
-                end)
+                    table.clear(Parts)
+                    table.clear(db)
+                end
             end
         })
 
@@ -673,17 +542,24 @@ Run(function() -- Combat
             List = {"Head", "RootPart", "All"},
         })
 
-        Transparency = HitboxExpander:CreateSlider({
-            Name = "Transparency",
-            Default = 1,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-        })
-
         Color = HitboxExpander:CreateColorPicker({
             Name = "Color",
             Default = Color3.fromRGB(255, 0, 0),
+        })
+
+        NoCollision = HitboxExpander:CreateToggle({
+            Name = 'No Collision',
+            Info = 'Disables the collision of targeted parts.',
+            Function = function(Enabled)
+                if HitboxExpander.Enabled then
+                    for Part in Parts do
+                        db[Part] = true
+                        Part.CanCollide = Enabled
+                        db[Part] = nil
+                    end
+                    table.clear(db)
+                end
+            end
         })
     end)
 end)
@@ -697,6 +573,7 @@ Run(function() -- Player
 
         local Params = OverlapParams.new()
         Params.MaxParts = 9e9
+        Params.RespectCanCollide = true
 
         local Functions = {
             Character = function()
@@ -904,38 +781,52 @@ Run(function() -- Player
     end)
 
     Run(function() -- JumpPower
-        local JumpPowerModule, JumpPower
-
-        local function Update()
-            CharacterLib.Humanoid.JumpPower = JumpPower.Value
-            CharacterLib.Humanoid.UseJumpPower = true
-        end
+        local JumpPowerModule, JumpPower, db, OldJumpPower, OldUseJumpPower
 
         local function LocalAdded()
-            Update()
-            JumpPowerModule:Clean(CharacterLib.Humanoid:GetPropertyChangedSignal("JumpPower"):Connect(Update))
-            JumpPowerModule:Clean(CharacterLib.Humanoid:GetPropertyChangedSignal("UseJumpPower"):Connect(Update))
+            OldJumpPower, OldUseJumpPower = CharacterLib.Humanoid.JumpPower, CharacterLib.Humanoid.UseJumpPower
+            CharacterLib.Humanoid.JumpPower = JumpPower.Value
+            CharacterLib.Humanoid.UseJumpPower = true
+            JumpPowerModule:Clean(CharacterLib.Humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()
+                if db then return end
+                OldJumpPower = CharacterLib.Humanoid.JumpPower
+                CharacterLib.Humanoid.JumpPower = JumpPower.Value
+            end))
+            JumpPowerModule:Clean(CharacterLib.Humanoid:GetPropertyChangedSignal("UseJumpPower"):Connect(function()
+                if db then return end
+                OldUseJumpPower = CharacterLib.Humanoid.UseJumpPower
+                CharacterLib.Humanoid.UseJumpPower = true
+            end))
         end
 
         JumpPowerModule = PlayerCategory:CreateModule({
             Name = "JumpPower",
             Info = "Sets the jump power of your humanoid.",
-            Enabled = function()
-                if CharacterLib.Alive then
-                    LocalAdded()
+            Function = function(Enabled)
+                if Enabled then
+                    if CharacterLib.Alive then
+                        LocalAdded()
+                    end
+                    JumpPowerModule:Clean(CharacterLib.Events.LocalAdded:Connect(LocalAdded))
+                else
+                    if CharacterLib.Alive then
+                        CharacterLib.Humanoid.JumpPower, CharacterLib.Humanoid.UseJumpPower = OldJumpPower, OldUseJumpPower
+                    end
                 end
-                JumpPowerModule:Clean(CharacterLib.Events.LocalAdded:Connect(LocalAdded))
             end
         })
 
         JumpPower = JumpPowerModule:CreateSlider({
             Name = "Jump Power",
-            Default = CharacterLib.Alive and CharacterLib.Humanoid.JumpPower or 50,
+            Default = CharacterLib.Alive and math.floor(CharacterLib.Humanoid.JumpPower) or 50,
             Min = 0,
             Max = 500,
             Function = function()
                 if JumpPowerModule.Enabled and CharacterLib.Alive then
-                    Update()
+                    db = true
+                    CharacterLib.Humanoid.JumpPower = JumpPower.Value
+                    CharacterLib.Humanoid.UseJumpPower = true
+                    db = nil
                 end
             end
         })
@@ -1041,14 +932,14 @@ Run(function() -- Player
             Function = function()
                 local Backpack = Plr:FindFirstChildOfClass("Backpack")
                 if not (Backpack and CharacterLib.Alive) then return end
-                for i, v in Backpack:GetChildren() do
+                for _, v in Backpack:GetChildren() do
                     if v.ClassName == "Tool" then
                         v.Parent = CharacterLib.Character
                     end
                 end
                 task.wait(0.2)
                 if not CharacterLib.Alive then return end
-                for i, v in CharacterLib.Character:GetChildren() do
+                for _, v in CharacterLib.Character:GetChildren() do
                     if v.ClassName == "Tool" then
                         v.Parent = workspace
                     end
@@ -1902,7 +1793,9 @@ Run(function() -- Movement
 
         local Functions = {
             Velocity = function()
-                CharacterLib.Root.AssemblyLinearVelocity = vector.create(CharacterLib.Root.AssemblyLinearVelocity.X, Speed.Value, CharacterLib.Root.AssemblyLinearVelocity.Z)
+                if CharacterLib.Humanoid.MoveDirection ~= vector.zero then
+                    CharacterLib.Root.AssemblyLinearVelocity = vector.create(CharacterLib.Root.AssemblyLinearVelocity.X, math.sign(CharacterLib.Root.AssemblyLinearVelocity.Y) * Speed.Value, CharacterLib.Root.AssemblyLinearVelocity.Z)
+                end
             end,
             CFrame = function(Delta)
                 local Vector = vector.create(0, (Speed.Value - (CharacterLib.Humanoid.WalkSpeed * 0.7)) * Delta, 0)
@@ -2718,7 +2611,7 @@ Run(function() -- Visuals
 
         LightingProperties.Ambient = FullBright:CreateColorPicker({
             Name = "Ambient",
-            Default = White,
+            Default = Color3.White,
             Function = function(Color)
                 if FullBright.Enabled then
                     Lighting.Ambient = Color
@@ -2735,7 +2628,7 @@ Run(function() -- Visuals
 
         LightingProperties.OutdoorAmbient = FullBright:CreateColorPicker({
             Name = "Outdoor Ambient",
-            Default = White,
+            Default = Color3.White,
             Function = function(Color)
                 if FullBright.Enabled then
                     Lighting.OutdoorAmbient = Color
@@ -2752,7 +2645,7 @@ Run(function() -- Visuals
 
         LightingProperties.ColorShift_Bottom = FullBright:CreateColorPicker({
             Name = "Color Shift Bottom",
-            Default = White,
+            Default = Color3.White,
             Function = function(Color)
                 if FullBright.Enabled then
                     Lighting.ColorShift_Bottom = Color
@@ -2769,7 +2662,7 @@ Run(function() -- Visuals
 
         LightingProperties.ColorShift_Top = FullBright:CreateColorPicker({
             Name = "Color Shift Top",
-            Default = White,
+            Default = Color3.White,
             Function = function(Color)
                 if FullBright.Enabled then
                     Lighting.ColorShift_Top = Color
@@ -2900,7 +2793,7 @@ Run(function() -- Visuals
 
         LightingProperties.FogColor = FullBright:CreateColorPicker({
             Name = "Fog Color",
-            Default = White,
+            Default = Color3.White,
             Function = function(Color)
                 if FullBright.Enabled then
                     Lighting.FogColor = Color
@@ -3960,8 +3853,8 @@ Run(function() -- Visuals
                     ViewportFrame.Size = UDim2.fromScale(1, 1)
                     ViewportFrame.BackgroundTransparency = 1
                     ViewportFrame.CurrentCamera = Camera
-                    ViewportFrame.Ambient = White
-                    ViewportFrame.LightColor = White
+                    ViewportFrame.Ambient = Color3.White
+                    ViewportFrame.LightColor = Color3.White
                     ViewportFrame.ImageColor3 = Color.Color
                     ViewportFrame.ImageTransparency = Color.Transparency
                     ViewportFrame.LightDirection = vector.zero
@@ -3995,8 +3888,8 @@ Run(function() -- Visuals
 
         Color = ViewportChams:CreateColorPicker({
             Name = 'Color',
-            Default = White,
-            FunctionEnabled = function(Color, Transparency)
+            Default = Color3.White,
+            Function = function(Color, Transparency)
                 if ViewportFrame then
                     ViewportFrame.ImageColor3 = Color
                     ViewportFrame.ImageTransparency = Transparency
@@ -6181,7 +6074,7 @@ Run(function() -- Scripts
         Scripts:CreateButton({
             Name = "Infinite Yield",
             Function = function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source", true))()
+                loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
             end
         })
     end)
@@ -6190,7 +6083,7 @@ Run(function() -- Scripts
         Scripts:CreateButton({
             Name = "Dex",
             Function = function()
-                local Dex = isfile('DexModified.lua') and readfile('DexModified.lua') or game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua", true)
+                local Dex = isfile('DexModified.lua') and readfile('DexModified.lua') or game:HttpGet('https://raw.githubusercontent.com/infyiff/backup/main/dex.lua')
                 loadstring(Dex)()
             end
         })
@@ -6200,7 +6093,7 @@ Run(function() -- Scripts
         Scripts:CreateButton({
             Name = "Simple Spy",
             Function = function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/SimpleSpyV3/main.lua", true))()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/SimpleSpyV3/main.lua"))()
             end
         })
     end)
@@ -6209,7 +6102,7 @@ Run(function() -- Scripts
         Scripts:CreateButton({
             Name = "Cobalt Spy",
             Function = function()
-                loadstring(game:HttpGet("https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau"))()
+                loadstring(game:HttpGet('https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau'))()
             end
         })
     end)
@@ -6218,7 +6111,7 @@ Run(function() -- Scripts
         Scripts:CreateButton({
             Name = "Audio Logger",
             Function = function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/audiologger.lua", true))()
+                loadstring(game:HttpGet('https://raw.githubusercontent.com/infyiff/backup/main/audiologger.lua'))()
             end
         })
     end)
@@ -6227,7 +6120,7 @@ Run(function() -- Scripts
         Scripts:CreateButton({
             Name = "Syn Save Instance",
             Function = function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/saveinstance.lua", true), "saveinstance")({})
+                loadstring(game:HttpGet('https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/saveinstance.lua'), "saveinstance")({})
             end
         })
     end)
@@ -6453,5 +6346,3 @@ Run(function() -- Server
         })
     end)
 end)
-
-return nil

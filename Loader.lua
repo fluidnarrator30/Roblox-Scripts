@@ -16,7 +16,7 @@ local TweenService: TweenService = GetService('TweenService')
 local Plr = Players.LocalPlayer
 local IsStudio = RunService:IsStudio()
 
-local gethui = gethui or function() return CoreGui and CoreGui:FindFirstChild('RobloxGui') or CoreGui or Plr:FindFirstChildOfClass('PlayerGui') end
+local gethui = gethui or function() return (CoreGui and CoreGui:FindFirstChild('RobloxGui')) or CoreGui or Plr:FindFirstChildOfClass('PlayerGui') end
 local writefile, makefolder, isfolder, isfile, readfile, loadfile = writefile, makefolder, isfolder or function(s) return false end, isfile or function(s) return false end, readfile, loadfile
 local getcustomasset = getcustomasset or function(Path) return `rbxasset://{Path}` end
 
@@ -91,7 +91,7 @@ LoadingInfo.BackgroundTransparency = 1
 LoadingInfo.Position = UDim2.fromOffset(5, 96)
 LoadingInfo.TextSize = 20
 LoadingInfo.TextColor3 = Color3.fromRGB(255, 255, 255)
-LoadingInfo.Text = ""
+LoadingInfo.Text = ''
 LoadingInfo.FontFace = Font.fromEnum(Enum.Font.Gotham)
 LoadingInfo.Parent = LoadingFrame
 
@@ -143,7 +143,7 @@ local function Load(Path, Name)
     LoadingInfo.Text = `Loading {Name}...`
     if IsStudio then
         local Ref = script
-        for _, v in Path:gsub('%.lua', ''):split("/") do
+        for _, v in Path:gsub('%.lua', ''):split('/') do
             Ref = Ref[v]
         end
         local Result = require(Ref)
@@ -151,7 +151,7 @@ local function Load(Path, Name)
         return Result
     else
         local Function = loadstring(DownloadFile(`TidalWave/{Path}`), Name)
-        if typeof(Function) == "function" then
+        if typeof(Function) == 'function' then
             local Result = Function()
             IncrementBar()
             return Result
@@ -182,7 +182,7 @@ if GameSupported then
     })
 end
 
-LoadingInfo.Text = 'Finished Loading.'
+LoadingInfo.Text = 'Finished Loading!'
 
 local Tween = TweenService:Create(LoadingFrame, TweenInfo.new(0.6, Enum.EasingStyle.Cubic, Enum.EasingDirection.In, 0, false, 0.75), {Position = UDim2.new(0.5, -150, 0, -150)})
 Tween:Play()
