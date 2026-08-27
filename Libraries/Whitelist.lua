@@ -91,13 +91,12 @@ end
 if not shared.TidalWaveDev then
     local Commit = readfile and readfile('TidalWave/Profiles/Commit.txt') or 'main'
 
-    if Commit == 'main' or not isfile('TidalWave/Profiles/Whitelist.txt') then
-        local Success, Result = pcall(function()
-            return game:HttpGet(`https://raw.githubusercontent.com/fluidnarrator30/Tidal-Wave/{Commit}/Whitelist.json`)
-        end)
-        if Success and Result ~= '404: Not Found' then
-            Whitelist.Data = HttpService:JSONDecode(Result)
-        end
+    local Success, Result = pcall(function()
+        return game:HttpGet(`https://raw.githubusercontent.com/fluidnarrator30/Tidal-Wave/{Commit}/Whitelist.json`)
+    end)
+
+    if Success and Result ~= '404: Not Found' then
+        Whitelist.Data = HttpService:JSONDecode(Result)
     end
 end
 
