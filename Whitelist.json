@@ -1,7 +1,10 @@
 {
     "WhitelistedUsers": {
         "654721806003077147": {
-            "Hash": "3b95658c82944b8f23fdaf073ca3b63ebbe9118866bec73005c8bd1701db025e04981fe11287a3c484d70b40fac35158707b364557d8fd649ba49c5468a9ffc3",
+            "Hashes": [
+                "f81b1854882138dd5463909c71d292d46836787e281b70d6d48e6106be09582bef8d8bc6d3bf3ca940c207587afbbba982044fe20c0f395aea3f4500b4dfc465",
+                "8d236012d5d30c5512b1307224cd32e50f57d1918628318caafdd497c8094e540b713ccc3e57e17591b429b3fa5ef9e2889ae6198b58431a42cfbd0c7fc5e98d"
+            ],
             "Attackable": false,
             "Level": 3
         }
