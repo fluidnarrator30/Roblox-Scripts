@@ -7,7 +7,7 @@ end
 local Players: Players = GetService('Players')
 local HttpService: HttpService = GetService('HttpService')
 
-local Plr = Players.LocalPlayer
+local Plr: Player = Players.LocalPlayer
 
 local TidalWave = shared.TidalWave
 local Libraries = TidalWave.Libraries
@@ -30,10 +30,12 @@ local function Notify(Properties)
 end
 
 function Whitelist:Get(Player)
-    local Hash = self.Hashes[Player.Name .. Player.UserId]
-    for _, v in self.Data.WhitelistedUsers do
-        if v.Hash == Hash then
-            return v.Level, v.Attackable or Whitelist.Level >= v.Level
+    local PlayerHash = self.Hashes[Player.Name .. Player.UserId]
+    for _, User in self.Data.WhitelistedUsers do
+        for _, Hash in User.Hashes do
+            if Hash == PlayerHash then
+                return User.Level, User.Attackable or Whitelist.Level >= User.Level
+            end
         end
     end
 
@@ -42,7 +44,7 @@ end
 
 function Whitelist:IsInGame()
     for _, v in Players:GetPlayers() do
-        if self:get(v) ~= 0 then
+        if self:Get(v) ~= 0 then
             return true
         end
     end
@@ -50,20 +52,22 @@ function Whitelist:IsInGame()
     return false
 end
 
-function Whitelist:GetPlayer(Arg, Player)
-    if Arg == 'Default' and self.Level == 0 then
+function Whitelist:GetPlayer(Arg: string, Player: Player): boolean
+    Arg = Arg:lower()
+
+    if Arg == 'default' and self.Level == 0 then
         return true
     end
 
-    if Arg == 'Private' and self.Level == 1 then
+    if Arg == 'private' and self.Level == 1 then
         return true
     end
 
-    if Arg == 'Others' and Player ~= Plr then
+    if Arg == 'others' and Player ~= Plr then
         return true
     end
 
-    if Arg and Plr.Name:lower():sub(1, #Arg) == Arg:lower() then
+    if Plr.Name:lower():sub(1, #Arg) == Arg then
         return true
     end
 
