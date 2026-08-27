@@ -6,7 +6,7 @@ end
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 local Drawing = TidalWave.Libraries.Drawing
 
 local RunService: RunService = GetService("RunService")
@@ -14,16 +14,20 @@ local UIS: UserInputService = GetService("UserInputService")
 
 local Combat = Categories.Combat
 
+local hookfunction = hookfunction
+local restorefunction = restorefunction
+local getcallingscript = getcallingscript
+
 local function Notify(Properties)
     TidalWave:Notify(Properties)
 end
 
 local function NotifyPoopSploit(Function)
     Notify({
-        Title = "Poop Sploit",
-        Text = `{TidalWave.Executor or "Your Executor"} doesn't support "{Function}"`,
-        Type = "Error",
-        Duration = 4,
+        Title = 'Poop Sploit',
+        Text = `Your executor doesn't support {Function}`,
+        Type = 'Error',
+        Duration = 5,
     })
 end
 
@@ -34,22 +38,22 @@ end
 Run(function()
     for _, v in {workspace.enemies, workspace.BossFolder} do
         TidalWave:Clean(v.ChildAdded:Connect(function(Child)
-            CharacterLib:AddCharacter(Child)
+            EntityLib:AddEntity(Child)
         end))
 
         TidalWave:Clean(v.ChildRemoved:Connect(function(Child)
-            CharacterLib:RemoveCharacter(Child)
+            EntityLib:RemoveEntity(Child)
         end))
 
         for _, v2 in v:GetChildren() do
-            CharacterLib:AddCharacter(v2)
+            EntityLib:AddEntity(v2)
         end
     end
 end)
 
 Run(function() -- Combat
     Run(function() -- SilentAimbot
-        local SilentAimbot, WallCheck, Part, Old, Fov, Circle, CircleObject, OutlineObject, OutlineColor, FillColor, OutlineTransparency, FillTransparency, Thickness
+        local SilentAimbot, WallCheck, Part, Fov, Circle, CircleObject, OutlineColor, FillColor, Thickness, Old
 
         local function UpdateCirclePosition()
             if CircleObject then
@@ -58,10 +62,10 @@ Run(function() -- Combat
         end
 
         local function CreateCircle()
-            CircleObject = Drawing.new("Circle")
+            CircleObject = Drawing.new('Circle')
             CircleObject.Radius = Fov.Value
-            CircleObject.FillTransparency = FillTransparency.Value
-            CircleObject.OutlineTransparency = OutlineTransparency.Value
+            CircleObject.FillTransparency = FillColor.Transparency
+            CircleObject.OutlineTransparency = OutlineColor.Transparency
             CircleObject.FillColor = FillColor.Color
             CircleObject.OutlineColor = OutlineColor.Color
             CircleObject.Thickness = Thickness.Value
@@ -80,8 +84,8 @@ Run(function() -- Combat
         local function UpdateCircle()
             if CircleObject then
                 CircleObject.Radius = Fov.Value
-                CircleObject.FillTransparency = FillTransparency.Value
-                CircleObject.OutlineTransparency = OutlineTransparency.Value
+                CircleObject.FillTransparency = FillColor.Transparency
+                CircleObject.OutlineTransparency = OutlineColor.Transparency
                 CircleObject.FillColor = FillColor.Color
                 CircleObject.OutlineColor = OutlineColor.Color
                 CircleObject.Thickness = Thickness.Value
@@ -89,8 +93,8 @@ Run(function() -- Combat
         end
         
         SilentAimbot = Combat:CreateModule({
-            Name = "SilentAimbot",
-            Info = "Silently adjusts your aim towards the nearest zombie",
+            Name = 'SilentAimbot',
+            Info = 'Silently adjusts your aim towards the nearest zombie',
             Enabled = function()
                 if not hookfunction then NotifyPoopSploit("hookfunction") return end
                 if not getcallingscript then NotifyPoopSploit("getcallingscript") return end
@@ -103,18 +107,19 @@ Run(function() -- Combat
 
                 Old = hookfunction(Ray.new, function(Origin, Direction)
                     local CallingScript = getcallingscript()
-                    if CallingScript and CallingScript.Name ~= "GunController" or not CallingScript then return Old(Origin, Direction) end
-                    local Character = CharacterLib:GetCharacterWithinMouse({
-                        Part = Part.Value,
-                        Range = Fov.Value,
-                        WallCheck = WallCheck.Enabled,
-                        Origin = Origin,
-                        NPCS = true,
-                        Players = false
-                    })
+                    if CallingScript and CallingScript.Name == 'GunController' then
+                        local Character = EntityLib:GetClosestEntityWithinMouse({
+                            Part = Part.Value,
+                            Range = Fov.Value,
+                            WallCheck = WallCheck.Enabled,
+                            Origin = Origin,
+                            NPCs = true,
+                            Players = false
+                        })
 
-                    if Character then
-                        return Old(Origin, Character[Part.Value].Position - Origin)
+                        if Character then
+                            return Old(Origin, Character[Part.Value].Position - Origin)
+                        end
                     end
 
                     return Old(Origin, Direction)
@@ -133,17 +138,17 @@ Run(function() -- Combat
         })
 
         WallCheck = SilentAimbot:CreateToggle({
-            Name = "WallCheck",
-            Info = "Ignores zombies behind walls",
+            Name = 'WallCheck',
+            Info = 'Ignores zombies behind walls',
         })
 
         Part = SilentAimbot:CreateDropdown({
-            Name = "Part",
-            List = {"Head", "Root"}
+            Name = 'Part',
+            List = {'Head', 'Root'}
         })
 
         Fov = SilentAimbot:CreateSlider({
-            Name = "Fov",
+            Name = 'Fov',
             Default = 100,
             Min = 0,
             Max = 1000,
@@ -151,21 +156,18 @@ Run(function() -- Combat
         })
 
         Circle = SilentAimbot:CreateToggle({
-            Name = "Circle",
+            Name = 'Circle',
             Function = function(Enabled)
                 if Enabled and SilentAimbot.Enabled then
                     CreateCircle()
                 else
                     RemoveCircle()
                 end
-                for _, v in {Fov, Thickness, OutlineTransparency, FillTransparency, OutlineColor, FillColor} do
-                    v:SetVisible(Enabled)
-                end
             end
         })
 
-        Thickness = SilentAimbot:CreateSlider({
-            Name = "Thickness",
+        Thickness = Circle:CreateSlider({
+            Name = 'Thickness',
             Default = 1,
             Min = 1,
             Max = 10,
@@ -173,37 +175,14 @@ Run(function() -- Combat
             Function = UpdateCircle
         })
 
-        OutlineTransparency = SilentAimbot:CreateSlider({
-            Name = "Outline Transparency",
-            Default = 0,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
+        OutlineColor = Circle:CreateColorPicker({
+            Name = 'Outline Color',
             Function = UpdateCircle
         })
 
-        FillTransparency = SilentAimbot:CreateSlider({
-            Name = "Fill Transparency",
-            Default = 1,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        OutlineColor = SilentAimbot:CreateColorPicker({
-            Name = "Outline Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        FillColor = SilentAimbot:CreateColorPicker({
-            Name = "Fill Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
+        FillColor = Circle:CreateColorPicker({
+            Name = 'Fill Color',
+            Transparency = 1,
             Function = UpdateCircle
         })
     end)

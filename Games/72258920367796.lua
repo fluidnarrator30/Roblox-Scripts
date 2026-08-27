@@ -12,7 +12,7 @@ local UIS: UserInputService = GetService('UserInputService')
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
 local Modules = TidalWave.Modules
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 local Drawing = TidalWave.Libraries.Drawing
 local ObjectFunctions = TidalWave.Libraries.ObjectFunctions
 
@@ -29,6 +29,8 @@ local Server = Categories.Server
 local Plr: Player = Players.LocalPlayer
 local Camera: Camera = workspace.CurrentCamera
 
+local require = table.find({'Xeno', 'Solara'}, ({identifyexecutor()})[1]) == nil and require or nil
+
 local function Notify(Properties)
     TidalWave:Notify(Properties)
 end
@@ -39,15 +41,11 @@ end
 
 local function NotifyPoopSploit(Function)
     Notify({
-        Title = "Poop Sploit",
-        Text = `{TidalWave.Executor or "Your Executor"} doesn't support "{Function}"`,
-        Type = "Error",
-        Duration = 4,
+        Title = 'Poop Sploit',
+        Text = `Your executor doesn't support '{Function}'`,
+        Type = 'Error',
+        Duration = 5,
     })
-end
-
-local function GetFullName(Obj)
-    return ObjectFunctions:GetFullName(Obj)
 end
 
 local function SafeRef(Obj, Path)
@@ -58,35 +56,42 @@ TidalWave:Clean(workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(func
     Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass('Camera')
 end))
 
-Run(function() -- CharacterLib
-    function CharacterLib:IsTeammate()
+Run(function() -- EntityLib
+    function EntityLib:IsTeammate()
         return false
     end
+
     local function ChildAdded(Child)
         if Child.ClassName == 'Model' then
             local Animate = Child:WaitForChild('Animate', 5)
             if Animate and Animate.ClassName == 'Script' then
-                CharacterLib:AddCharacter(Child)
+                EntityLib:AddEntity(Child)
             end
         end
     end
+
     TidalWave:Clean(workspace.ChildAdded:Connect(ChildAdded))
     TidalWave:Clean(workspace.ChildRemoved:Connect(function(Child)
         if Child.ClassName == 'Model' then
-            local Character = CharacterLib:FindCharacter(Child, {NPCS = true})
+            local Character = EntityLib:FindNPC(Child)
             if Character then
-                CharacterLib:RemoveCharacter(Character.Character)
+                EntityLib:RemoveEntity(Character.Character)
             end
         end
     end))
+
     for _, v in workspace:GetChildren() do
-        task.spawn(ChildAdded, v)
+        if v.ClassName == 'Model' then
+            task.spawn(ChildAdded, v)
+        end
     end
 end)
 
 Run(function() -- Combat
     Run(function() -- SilentAimbot
-        local SilentAimbot, WallCheck, Part, Fov, Circle, CircleObject, OutlineColor, FillColor, OutlineTransparency, FillTransparency, Thickness
+        local SilentAimbot, WallCheck, Part, Fov, Circle, OutlineColor, FillColor, Thickness
+
+        local CircleObject
 
         local function UpdateCirclePosition()
             if CircleObject then
@@ -95,10 +100,10 @@ Run(function() -- Combat
         end
 
         local function CreateCircle()
-            CircleObject = Drawing.new("Circle")
+            CircleObject = Drawing.new('Circle')
             CircleObject.Radius = Fov.Value
-            CircleObject.FillTransparency = FillTransparency.Value
-            CircleObject.OutlineTransparency = OutlineTransparency.Value
+            CircleObject.FillTransparency = FillColor.Transparency
+            CircleObject.OutlineTransparency = OutlineColor.Transparency
             CircleObject.FillColor = FillColor.Color
             CircleObject.OutlineColor = OutlineColor.Color
             CircleObject.Thickness = Thickness.Value
@@ -117,8 +122,8 @@ Run(function() -- Combat
         local function UpdateCircle()
             if CircleObject then
                 CircleObject.Radius = Fov.Value
-                CircleObject.FillTransparency = FillTransparency.Value
-                CircleObject.OutlineTransparency = OutlineTransparency.Value
+                CircleObject.FillTransparency = FillColor.Transparency
+                CircleObject.OutlineTransparency = OutlineColor.Transparency
                 CircleObject.FillColor = FillColor.Color
                 CircleObject.OutlineColor = OutlineColor.Color
                 CircleObject.Thickness = Thickness.Value
@@ -129,32 +134,34 @@ Run(function() -- Combat
         Params.RespectCanCollide = true
 
         SilentAimbot = Combat:CreateModule({
-            Name = "SilentAimbot",
-            Info = "Silently Adjusts your aim towards the nearest zombie",
+            Name = 'SilentAimbot',
+            Info = 'Silently Adjusts your aim towards the closest player',
             Enabled = function()
-                SilentAimbot:Clean(RunService.PreRender:Connect(UpdateCirclePosition))
+                if not require then NotifyPoopSploit('require') return end
 
-                local Packet = require(game:GetService("ReplicatedStorage").Common.Packets.WeaponPackets)
+                local Packet = require(ReplicatedStorage.Common.Packets.WeaponPackets)
 
                 local Old = Packet.useWeapon.send
                 Packet.useWeapon.send = function(Tab)
-                    local Character = CharacterLib:GetClosestCharacterWithinMouse({
+                    local Character = EntityLib:GetClosestEntityWithinMouse({
                         Part = Part.Value,
                         Range = Fov.Value,
                         WallCheck = WallCheck.Enabled,
                         Origin = Tab.origin,
                         Players = true,
-                        NPCS = true
+                        NPCs = true
                     })
 
                     if Character then
-                        local List = {CharacterLib.Character}
-                        for _, v in CharacterLib.List do
-                            if not CharacterLib:CanAttack(v) then
-                                List[#List + 1] = v
+                        local List = {EntityLib.Character}
+                        for _, v in EntityLib.List do
+                            if not EntityLib:CanAttack(v) then
+                                table.insert(List, v.Character)
                             end
                         end
+
                         Params.FilterDescendantsInstances = List
+
                         local Raycast = workspace:Raycast(Tab.origin, (Character.Head.Position - Tab.origin) * 1000, Params)
                         Tab.direction = CFrame.lookAt(Tab.origin, Character.Head.Position).LookVector
                         Tab.position = Raycast and Raycast.Position or Character.Head.Position
@@ -164,6 +171,8 @@ Run(function() -- Combat
 
                     return Old(Tab)
                 end
+
+                SilentAimbot:Clean(RunService.PreRender:Connect(UpdateCirclePosition))
 
                 if Circle.Enabled and not CircleObject then
                     CreateCircle()
@@ -180,17 +189,17 @@ Run(function() -- Combat
         })
 
         WallCheck = SilentAimbot:CreateToggle({
-            Name = "WallCheck",
-            Info = "Ignores zombies behind walls",
+            Name = 'WallCheck',
+            Info = 'Ignores players behind walls',
         })
 
         Part = SilentAimbot:CreateDropdown({
-            Name = "Part",
-            List = {"Head", "Root"}
+            Name = 'Part',
+            List = {'Head', 'Root'}
         })
 
         Fov = SilentAimbot:CreateSlider({
-            Name = "Fov",
+            Name = 'Fov',
             Default = 100,
             Min = 0,
             Max = 1000,
@@ -198,59 +207,32 @@ Run(function() -- Combat
         })
 
         Circle = SilentAimbot:CreateToggle({
-            Name = "Circle",
+            Name = 'Circle',
             Function = function(Enabled)
                 if Enabled and SilentAimbot.Enabled then
                     CreateCircle()
                 else
                     RemoveCircle()
                 end
-                for i, v in {Fov, Thickness, OutlineTransparency, FillTransparency, OutlineColor, FillColor} do
-                    v:SetVisible(Enabled)
-                end
             end
         })
 
-        Thickness = SilentAimbot:CreateSlider({
-            Name = "Thickness",
+        Thickness = Circle:CreateSlider({
+            Name = 'Thickness',
             Default = 1,
             Min = 1,
             Max = 10,
-            Visible = false,
             Function = UpdateCircle
         })
 
-        OutlineTransparency = SilentAimbot:CreateSlider({
-            Name = "Outline Transparency",
-            Default = 0,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
+        OutlineColor = Circle:CreateColorPicker({
+            Name = 'Outline Color',
             Function = UpdateCircle
         })
 
-        FillTransparency = SilentAimbot:CreateSlider({
-            Name = "Fill Transparency",
-            Default = 1,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        OutlineColor = SilentAimbot:CreateColorPicker({
-            Name = "Outline Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        FillColor = SilentAimbot:CreateColorPicker({
-            Name = "Fill Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
+        FillColor = Circle:CreateColorPicker({
+            Name = 'Fill Color',
+            Transparency = 1,
             Function = UpdateCircle
         })
     end)

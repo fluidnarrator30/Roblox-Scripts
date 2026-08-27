@@ -13,13 +13,14 @@ local CollectionService: CollectionService = GetService('CollectionService')
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 local Prediction = TidalWave.Libraries.Prediction
 local Modules = TidalWave.Modules
-local CustomLocalMethods = TidalWave.Libraries.CustomLocalMethods
+local ObjectFunctions = TidalWave.Libraries.ObjectFunctions
+local AuraAnimations = TidalWave.Libraries.AuraAnimations
 
 local Plr = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass('Camera')
 
 local Combat = Categories.Combat
 local PlayerCategory = Categories.Player
@@ -28,21 +29,34 @@ local Visuals = Categories.Visuals
 local World = Categories.World
 local Other = Categories.Other
 
-local getupvalue = debug.getupvalue or getupvalue
+local vector = table.clone(vector)
+vector.xAxis = vector.create(1, 0, 0)
+vector.yAxis = vector.create(0, 1, 0)
+vector.zAxis = vector.create(0, 0, 1)
+vector.hort = vector.create(1, 0, 1)
+vector.huge = vector.create(math.huge, math.huge, math.huge)
+vector.hugeX = vector.create(math.huge, 0, 0)
+vector.hugeY = vector.create(0, math.huge, 0)
+vector.hugeZ = vector.create(0, 0, math.huge)
+vector.hugeXZ = vector.create(math.huge, 0, math.huge)
+vector.unit = vector.normalize
+function vector.round(Vec)
+    return vector.create(math.round(Vec.X), math.round(Vec.Y), math.round(Vec.Z))
+end
 
-local LowLevel = table.find({'Xeno', 'Solara'}, identifyexecutor and identifyexecutor() or 'Solara')
+local ViewmodelTool
+local ViewmodelMotor
+
+local hookfunction = hookfunction or hookfunc
+local setthreadidentity = setthreadidentity
+local getconnections = getconnections or get_signal_cons
+
+TidalWave:Clean(workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(function()
+    Camera = workspace.CurrentCamera or workspace:FindFirstAncestorOfClass('Camera')
+end))
 
 local function Notify(Properties)
     TidalWave:Notify(Properties)
-end
-
-local function NotifyPoopSploit(Function)
-    Notify({
-        Title = "Poop Sploit",
-        Text = `{TidalWave.Executor or "Your Executor"} doesn't support "{Function}"`,
-        Type = "Error",
-        Duration = 4,
-    })
 end
 
 local function Run(f)
@@ -50,7 +64,7 @@ local function Run(f)
 end
 
 local function SafeRef(Obj, Path)
-    return CustomLocalMethods:SafeRef(Obj, Path)
+    return ObjectFunctions:SafeRef(Obj, Path)
 end
 
 local skywars, remotes = {}, {}
@@ -58,8 +72,7 @@ local store = {
 	blocks = {},
 	hand = {},
 	inventory = {},
-	tools = {},
-	noShoot = tick()
+	tools = {}
 }
 
 local function collection(tags, module, customadd, customremove)
@@ -141,254 +154,510 @@ end
 
 local function parsePositions(v, func)
 	if v:IsA('Part') and v.Size // 1 == v.Size then
-		local start = (v.Position - (v.Size / 2)) + Vector3.new(1.5, 1.5, 1.5)
+		local start = (v.Position - (v.Size / 2)) + vector.create(1.5, 1.5, 1.5)
 		for x = 0, v.Size.X - 1, 3 do
 			for y = 0, v.Size.Y - 1, 3 do
 				for z = 0, v.Size.Z - 1, 3 do
-					func(start + Vector3.new(x, y, z))
+					func(start + vector.create(x, y, z))
 				end
 			end
 		end
 	end
 end
 
-Run(function() -- CharacterLib
-    function CharacterLib:GetUpdateConnections(Character)
+Run(function() -- EntityLib
+    function EntityLib:GetUpdateConnections(Character)
         return {
 			Character.Player:GetAttributeChangedSignal('Health'),
 		}
     end
 
-    function CharacterLib:IsTeammate(Character)
+    function EntityLib:IsTeammate(Character)
         if TidalWave:IsFriend(Character.Player) then return true end
         return Plr:GetAttribute('TeamId') == Character.Player:GetAttribute('TeamId')
     end
 
-    function CharacterLib:GetTeamColor(Character)
+    function EntityLib:GetTeamColor(Character)
         local IsFriend, FriendColor = TidalWave:IsFriend(Character.Player)
         if IsFriend and FriendColor then
             return FriendColor
         end
+        
         return skywars.TeamController:getTeamColour(Character.Player:GetAttribute('TeamId'))
     end
 
-    CharacterLib:Restart()
+    EntityLib:Restart()
 end)
 
-Run(function() -- Init
-    if LowLevel then
-        Notify({Title = 'Poop Sploit', Text = "Come back with a real executor buddy not some xeno solara crap", Duration = 10, Type = 'Error'})
-        error('[Tidal Wave]: Come back with a real executor buddy not some xeno solara crap', 2)
-    else
-        local Flamework = require(ReplicatedStorage['rbxts_include']['node_modules']['@flamework'].core.out).Flamework
-        local ControllerTable = {}
+Run(function() -- Base
+    local Flamework = require(ReplicatedStorage.rbxts_include.node_modules['@flamework'].core.out).Flamework
+    local ControllerTable = {}
 
-        if not getupvalue(Flamework.ignite, 1) then
-            repeat task.wait() until getupvalue(Flamework.ignite, 1)
+    if not debug.getupvalue(Flamework.ignite, 1) then
+        repeat task.wait() until debug.getupvalue(Flamework.ignite, 1)
+    end
+
+    local function searchFunction(name, i2, v2)
+        for _, v3 in debug.getconstants(v2) do
+            if tostring(v3):find('-') == 9 then
+                remotes[(rawget(remotes, i2) and name..':' or '')..i2] = v3
+            end
         end
+    end
 
-        local function searchFunction(name, i2, v2)
-            for _, v3 in debug.getconstants(v2) do
-                if tostring(v3):find('-') == 9 then
-                    remotes[(rawget(remotes, i2) and name..':' or '')..i2] = v3
+    for i, v in debug.getupvalue(Flamework.ignite, 2).idToObj do
+        local name = tostring(v)
+        ControllerTable[name] = Flamework.resolveDependency(i)
+        for i2, v2 in v do
+            if type(v2) == 'function' then
+                searchFunction(name, i2, v2)
+
+                for _, v3 in debug.getprotos(v2) do
+                    searchFunction(name, i2, v3)
                 end
             end
         end
+    end
 
-        for i, v in getupvalue(Flamework.ignite, 2).idToObj do
-            local name = tostring(v)
-            ControllerTable[name] = Flamework.resolveDependency(i)
-            for i2, v2 in v do
-                if type(v2) == 'function' then
-                    searchFunction(name, i2, v2)
+    local roactCheck = ReplicatedStorage.rbxts_include.node_modules['@rbxts']:FindFirstChild('roact')
+    skywars = setmetatable({
+        CameraUtil = require(Plr.PlayerScripts.TS.util['camera-util']).CameraUtil,
+        FireOrigin = debug.getupvalue(ControllerTable.ProjectileController.chargeBow, 11).ORIGIN_OFFSET,
+        Gravity = debug.getupvalue(ControllerTable.ProjectileController.chargeBow, 13).WORLD_ACCELERATION.Y,
+        ItemMeta = debug.getupvalue(ControllerTable.HotbarController.getSword, 1),
+        Remotes = debug.getupvalue(ControllerTable.MeleeController.strikeDesktop, 6),
+        Roact = require(roactCheck and roactCheck.src or ReplicatedStorage.rbxts_include.node_modules['@rbxts'].ReactLua.node_modules['@jsdotlua']['roact-compat']),
+        Store = require(Plr.PlayerScripts.TS.ui.rodux['global-store']).GlobalStore,
+        Shop = require(ReplicatedStorage.TS.game.shop['game-shop']).Shops
+    }, {
+        __index = function(self, ind)
+            rawset(self, ind, ControllerTable[ind])
+            return rawget(self, ind)
+        end
+    })
 
-                    for _, v3 in debug.getprotos(v2) do
-                        searchFunction(name, i2, v3)
-                    end
-                end
-            end
+    local function updateStore(newStore, oldStore)
+        if newStore.ActiveSlot ~= oldStore.ActiveSlot then
+            store.hand = newStore.Inventory.Contents[newStore.ActiveSlot]
+            store.hand = store.hand and skywars.ItemMeta[store.hand.Type] or {}
         end
 
-        local roactCheck = ReplicatedStorage['rbxts_include']['node_modules']['@rbxts']:FindFirstChild('roact')
-        skywars = setmetatable({
-            CameraUtil = require(Plr.PlayerScripts.TS.util['camera-util']).CameraUtil,
-            FireOrigin = getupvalue(ControllerTable.ProjectileController.chargeBow, 11).ORIGIN_OFFSET,
-            Gravity = getupvalue(ControllerTable.ProjectileController.chargeBow, 13).WORLD_ACCELERATION.Y,
-            ItemMeta = getupvalue(ControllerTable.HotbarController.getSword, 1),
-            Remotes = getupvalue(ControllerTable.MeleeController.strikeDesktop, 6),
-            Roact = require(roactCheck and roactCheck.src or ReplicatedStorage['rbxts_include']['node_modules']['@rbxts'].ReactLua['node_modules']['@jsdotlua']['roact-compat']),
-            Store = require(Plr.PlayerScripts.TS.ui.rodux['global-store']).GlobalStore,
-            Shop = require(ReplicatedStorage.TS.game.shop['game-shop']).Shops
-        }, {
-            __index = function(self, ind)
-                rawset(self, ind, ControllerTable[ind])
-                return rawget(self, ind)
-            end
-        })
-
-        local function updateStore(newStore, oldStore)
-            if newStore.ActiveSlot ~= oldStore.ActiveSlot then
-                store.hand = newStore.Inventory.Contents[newStore.ActiveSlot]
-                store.hand = store.hand and skywars.ItemMeta[store.hand.Type] or {}
-            end
-
-            if newStore.Inventory ~= oldStore.Inventory then
-                store.inventory = newStore.Inventory.Contents
-                store.hand = newStore.Inventory.Contents[newStore.ActiveSlot]
-                store.hand = store.hand and skywars.ItemMeta[store.hand.Type] or {}
-                store.tools.sword = getSword()
-                store.tools.pickaxe = getPickaxe()
-            end
+        if newStore.Inventory ~= oldStore.Inventory then
+            store.inventory = newStore.Inventory.Contents
+            store.hand = newStore.Inventory.Contents[newStore.ActiveSlot]
+            store.hand = store.hand and skywars.ItemMeta[store.hand.Type] or {}
+            store.tools.sword = getSword()
+            store.tools.pickaxe = getPickaxe()
         end
+    end
 
-        local storeChanged = skywars.Store.changed:connect(updateStore)
-        updateStore(skywars.Store:getState(), {})
+    local storeChanged = skywars.Store.changed:connect(updateStore)
+    updateStore(skywars.Store:getState(), {})
 
-        TidalWave:Clean(workspace.BlockContainer.DescendantAdded:Connect(function(v)
-            parsePositions(v, function(pos)
-                store.blocks[pos] = v
-            end)
-        end))
-        TidalWave:Clean(workspace.BlockContainer.DescendantRemoving:Connect(function(v)
-            parsePositions(v, function(pos)
-                store.blocks[pos] = nil
-            end)
-        end))
-        for _, v in workspace.BlockContainer:GetDescendants() do
-            parsePositions(v, function(pos)
-                store.blocks[pos] = v
-            end)
-        end
-
-        TidalWave:Clean(function()
-            table.clear(ControllerTable)
-            table.clear(skywars)
-            table.clear(store.blocks)
-            table.clear(store)
-            storeChanged:disconnect()
-            storeChanged = nil
+    TidalWave:Clean(workspace.BlockContainer.DescendantAdded:Connect(function(v)
+        parsePositions(v, function(pos)
+            store.blocks[pos] = v
+        end)
+    end))
+    TidalWave:Clean(workspace.BlockContainer.DescendantRemoving:Connect(function(v)
+        parsePositions(v, function(pos)
+            store.blocks[pos] = nil
+        end)
+    end))
+    for _, v in workspace.BlockContainer:GetDescendants() do
+        parsePositions(v, function(pos)
+            store.blocks[pos] = v
         end)
     end
+
+    TidalWave:Clean(function()
+        table.clear(ControllerTable)
+        table.clear(skywars)
+        table.clear(store.blocks)
+        table.clear(store)
+        storeChanged:disconnect()
+        storeChanged = nil
+    end)
 end)
 
 Run(function() -- Combat
     Run(function() -- KillAura
-        local Killaura
-        local WallCheck
-        local AttackRange
-        local AngleCheck
-        local Max
-        local Mouse
-        local Limit
-        local Swing
+        local KillAura, UsePlayers, WallCheck, AttackRange, AngleCheck, MaxTargets, RequireMouseDown, RequireInHand, SwingAnimation
+        local BoxAttackColor, ParticleTexture, ParticleColor1,  ParticleColor2, ParticleSize, AnimationEnabled, Animation, AnimationSpeed, UpdateRate
         
-        local function getAttackData()
-            if Mouse.Enabled then
-                if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then return false end
+        local Particles = {}
+        local Boxes = {}
+
+        local OldC0, Tween, StopTween, Attacking
+
+        local function MouseCheck()
+            if RequireMouseDown.Enabled and not UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                return false
             end
-        
-            return (not Limit.Enabled) and store.tools.sword or store.hand
+
+            if RequireInHand.Enabled then
+                return store.hand
+            end
+
+            return store.tools.sword
         end
-        
-        Killaura = Combat:CreateModule({
+
+        KillAura = Combat:CreateModule({
             Name = 'KillAura',
-            Function = function(callback)
-                if callback then
-                    repeat
-                        local attacked = {}
-                        local tool = getAttackData()
-                        if tool and tool.Melee then
-                            local plrs = CharacterLib:GetClosestCharacters({
+            Info = 'Automatically attacks players around you',
+            Function = function(Enabled)
+                if Enabled then
+                    if AnimationEnabled.Enabled then
+                        KillAura:Clean(task.spawn(function()
+                            local First = true
+
+                            while KillAura.Enabled do
+                                if not OldC0 and ViewmodelMotor then
+                                    OldC0 = ViewmodelMotor.C0
+                                end
+
+                                if ViewmodelMotor and OldC0 then
+                                    if Attacking then
+                                        if StopTween then
+                                            StopTween:Cancel()
+                                            StopTween = nil
+                                        end
+
+                                        for i, Keyframe in AuraAnimations[Animation.Value] do
+                                            Tween = TweenService:Create(ViewmodelMotor, TweenInfo.new(First and 0.1 or Keyframe.Duration / AnimationSpeed.Value, Enum.EasingStyle.Linear), {C0 = OldC0 * Keyframe.CFrame})
+                                            First = nil
+                                            Tween:Play()
+                                            Tween.Completed:Wait()
+                                            if not (Attacking and ViewmodelMotor) then break end
+                                        end
+                                    elseif Tween and not Attacking then
+                                        First = true
+                                        Tween:Cancel()
+                                        Tween = nil
+
+                                        StopTween = TweenService:Create(ViewmodelMotor, TweenInfo.new(0.3 / AnimationSpeed.Value, Enum.EasingStyle.Exponential), {C0 = OldC0})
+                                        StopTween:Play()
+                                        StopTween.Completed:Once(function(State)
+                                            if State == Enum.PlaybackState.Completed then
+                                                StopTween = nil
+                                            end
+                                        end)
+                                    end
+                                end
+
+                                task.wait(1 / UpdateRate.Value)
+                            end
+                        end))
+                    end
+
+                    while KillAura.Enabled do
+                        local Attacked = {}
+                        local Tool = MouseCheck()
+
+                        if Tool and Tool.Melee then
+                            local Characters = EntityLib:GetClosestEntities({
                                 Range = AttackRange.Value,
                                 WallCheck = WallCheck.Enabled,
                                 Part = 'Root',
-                                Players = true,
-                                Limit = Max.Value
+                                Players = UsePlayers.Enabled,
+                                Limit = MaxTargets.Value
                             })
-                            local switched = false
-        
-                            if #plrs > 0 then
-                                local localfacing = CharacterLib.Root.CFrame.LookVector * Vector3.new(1, 0, 1)
-                                store.noShoot = tick() + 1
-        
-                                for _, v in plrs do
-                                    local delta = (v.Root.Position - CharacterLib.Root.Position)
-                                    local angle = math.acos(localfacing:Dot((delta * Vector3.new(1, 0, 1)).Unit))
-                                    if angle > (math.rad(AngleCheck.Value) / 2) then continue end
-                                    table.insert(attacked, v)
-        
-                                    if Swing.Enabled then
-                                        skywars.MeleeController:playAnimation(Plr.Character, tool)
+
+                            local Switched = false
+
+                            if #Characters > 0 then
+                                local LookVector = EntityLib.Root.CFrame.LookVector * vector.hort
+
+                                local MaxAngle = math.rad(AngleCheck.Value) / 2
+
+                                for _, Character in Characters do
+                                    local Delta = (Character.Root.Position - EntityLib.Root.Position)
+                                    local Angle = math.acos(LookVector:Dot((Delta * vector.hort).Unit))
+                                    if Angle > MaxAngle then continue end
+
+                                    table.insert(Attacked, Character)
+
+                                    Attacking = true
+
+                                    if SwingAnimation.Enabled then
+                                        skywars.MeleeController:playAnimation(EntityLib.Character, Tool)
                                     end
-        
-                                    if not switched then
-                                        switched = true
-                                        skywars.Remotes[remotes.updateActiveItem]:fire(tool.Name)
+
+                                    if not Switched then
+                                        Switched = true
+                                        skywars.Remotes[remotes.updateActiveItem]:fire(Tool.Name)
                                     end
-        
-                                    skywars.Remotes[remotes.strikeDesktop]:fire(v.Player)
+
+                                    skywars.Remotes[remotes.strikeDesktop]:fire(Character.Player)
                                 end
+                            else
+                                Attacking = nil
                             end
-        
-                            if switched then
+
+                            if Switched then
                                 skywars.Remotes[remotes.updateActiveItem](store.hand.Name)
                             end
                         end
-        
-                        task.wait(0.05)
-                    until not Killaura.Enabled
+
+                        if setthreadidentity then
+                            setthreadidentity(8)
+                        end
+
+                        for i, Box in Boxes do
+                            local Character = Attacked[i]
+                            Box.Adornee = Character and Character.Root or nil
+                            if Character then
+                                Box.Color3 = BoxAttackColor.Color
+                                Box.Transparency = BoxAttackColor.Transparency
+                            end
+                        end
+
+                        for i, Particle in Particles do
+                            local Character = Attacked[i]
+                            Particle.Position = Character and Character.Root.Position or vector.huge
+                            Particle.Parent = Character and Camera or nil
+                        end
+
+                        task.wait()
+                    end
+                else
+                    for _, Box in Boxes do
+                        Box.Adornee = nil
+                    end
+                    for _, Particle in Particles do
+                        Particle.Parent = nil
+                    end
+                    if Tween then
+                        Tween:Cancel()
+                        Tween = nil
+                    end
+                    if StopTween then
+                        StopTween:Cancel()
+                        StopTween = nil
+                    end
+                    if ViewmodelMotor and OldC0 then
+                        ViewmodelMotor.C0 = OldC0
+                    end
+                    Attacking = nil
+                    OldC0 = nil
                 end
             end,
-            Info = 'Attack players around you\nwithout aiming at them.'
         })
-        WallCheck = Killaura:CreateToggle({
-            Name = 'WallCheck',
-            Info = 'Ignores players behind walls.'
-        })
-        AttackRange = Killaura:CreateSlider({
-            Name = 'Attack range',
-            Min = 1,
-            Max = 18,
-            Default = 18,
-            Suffix = function(val)
-                return val == 1 and 'stud' or 'studs'
-            end
-        })
-        AngleCheck = Killaura:CreateSlider({
-            Name = 'Max angle',
-            Min = 1,
-            Max = 360,
-            Default = 360
-        })
-        Max = Killaura:CreateSlider({
-            Name = 'Max targets',
-            Min = 1,
-            Max = 10,
-            Default = 10
-        })
-        Mouse = Killaura:CreateToggle({Name = 'Require mouse down'})
-        Swing = Killaura:CreateToggle({
-            Name = 'Swing',
-            Info = 'Whether or not to play the swing animation',
+
+        UsePlayers = KillAura:CreateToggle({
+            Name = 'Players',
             Default = true
         })
-        Limit = Killaura:CreateToggle({
-            Name = 'Limit to items',
-            Info = 'Only attacks when the sword is held'
+
+        WallCheck = KillAura:CreateToggle({
+            Name = 'Wall Check'
+        })
+
+        AttackRange = KillAura:CreateSlider({
+            Name = 'Attack Range',
+            Default = 18,
+            Min = 1,
+            Max = 18
+        })
+
+        AngleCheck = KillAura:CreateSlider({
+            Name = 'Max Angle',
+            Default = 360,
+            Min = 1,
+            Max = 360,
+        })
+
+        MaxTargets = KillAura:CreateSlider({
+            Name = 'Max Targets',
+            Default = 10,
+            Min = 1,
+            Max = 10
+        })
+
+        RequireMouseDown = KillAura:CreateToggle({
+            Name = 'Require Mouse Down'
+        })
+
+        RequireInHand = KillAura:CreateToggle({
+            Name = 'Require In Hand',
+            Tooltip = 'Only attacks when the sword is held'
+        })
+
+        SwingAnimation = KillAura:CreateToggle({
+            Name = 'Swing Animation',
+            Info = 'Plays the sword swing animation',
+            Default = true
+        })
+
+        KillAura:CreateToggle({
+            Name = 'Show target',
+            Function = function(Enabled)
+                if Enabled then
+                    local KillAuraTargets = Instance.new('Folder')
+                    KillAuraTargets.Name = 'KillAuraTargets'
+                    KillAuraTargets.Parent = TidalWave.Gui
+                    
+                    TidalWave:Clean(KillAuraTargets)
+                    
+                    for i = 1, 10 do
+                        local Box = Instance.new('BoxHandleAdornment')
+                        Box.Adornee = nil
+                        Box.AlwaysOnTop = true
+                        Box.Size = Vector3.new(3, 5, 3)
+                        Box.CFrame = CFrame.new(0, -0.5, 0)
+                        Box.ZIndex = 0
+                        Box.Parent = KillAuraTargets
+
+                        Boxes[i] = Box
+                    end
+                else
+                    table.clear(Boxes)
+                end
+            end
+        })
+
+        BoxAttackColor = KillAura:CreateColorPicker({
+            Name = 'Attack Color',
+            Color = Color3.fromRGB(255, 0, 0),
+            Transparency = 0.5,
+        })
+
+        local TargetParticles = KillAura:CreateToggle({
+            Name = 'Target Particles',
+            Function = function(Enabled)
+                if Enabled then
+                    for i = 1, 10 do
+                        local part = Instance.new('Part')
+                        part.Size = Vector3.new(2, 4, 2)
+                        part.Anchored = true
+                        part.CanCollide = false
+                        part.Transparency = 1
+                        part.CanQuery = false
+                        part.Parent = KillAura.Enabled and Camera or nil
+
+                        local particles = Instance.new('ParticleEmitter')
+                        particles.Brightness = 1.5
+                        particles.Size = NumberSequence.new(ParticleSize.Value)
+                        particles.Shape = Enum.ParticleEmitterShape.Sphere
+                        particles.Texture = ParticleTexture.Value
+                        particles.Transparency = NumberSequence.new(0)
+                        particles.Lifetime = NumberRange.new(0.4)
+                        particles.Speed = NumberRange.new(16)
+                        particles.Rate = 128
+                        particles.Drag = 16
+                        particles.ShapePartial = 1
+                        particles.Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, ParticleColor1.Color),
+                            ColorSequenceKeypoint.new(1, ParticleColor2.Color)
+                        })
+                        particles.Parent = part
+                        Particles[i] = part
+                    end
+                else
+                    for _, v in Particles do
+                        v:Destroy()
+                    end
+                    table.clear(Particles)
+                end
+            end
+        })
+
+        ParticleTexture = TargetParticles:CreateTextBox({
+            Name = 'Texture',
+            Default = 'rbxassetid://14736249347',
+            Function = function()
+                for _, Particle in Particles do
+                    Particle.ParticleEmitter.Texture = ParticleTexture.Value
+                end
+            end,
+        })
+
+        ParticleColor1 = TargetParticles:CreateColorPicker({
+            Name = 'Color Begin',
+            Function = function(Color)
+                for _, Particle in Particles do
+                    Particle.ParticleEmitter.Color = ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, Color),
+                        ColorSequenceKeypoint.new(1, ParticleColor2.Color)
+                    })
+                end
+            end,
+        })
+
+        ParticleColor2 = TargetParticles:CreateColorPicker({
+            Name = 'Color End',
+            Function = function(Color)
+                for _, Particle in Particles do
+                    Particle.ParticleEmitter.Color = ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, ParticleColor1),
+                        ColorSequenceKeypoint.new(1, Color)
+                    })
+                end
+            end,
+        })
+
+        ParticleSize = TargetParticles:CreateSlider({
+            Name = 'Size',
+            Min = 0,
+            Max = 1,
+            Default = 0.2,
+            Decimal = 100,
+            Function = function(val)
+                for _, Particle in Particles do
+                    Particle.ParticleEmitter.Size = NumberSequence.new(val)
+                end
+            end,
+        })
+
+        AnimationEnabled = KillAura:CreateToggle({
+            Name = 'Custom Animation',
+            Info = 'Requires the Viewmodel Module inside Visuals category for this to work',
+            Function = function()
+                if KillAura.Enabled then
+                    KillAura:Toggle(true)
+                    KillAura:Toggle(true)
+                end
+            end
+        })
+
+        local List = {}
+
+        for Name in AuraAnimations do
+            table.insert(List, Name)
+        end
+
+        Animation = AnimationEnabled:CreateDropdown({
+            Name = 'Aura Animation',
+            List = List
+        })
+
+        AnimationSpeed = AnimationEnabled:CreateSlider({
+            Name = 'Animation Speed',
+            Default = 1,
+            Min = 0,
+            Max = 2,
+            Decimal = 10
+        })
+
+        UpdateRate = AnimationEnabled:CreateSlider({
+            Name = 'Update Rate',
+            Default = 60,
+            Min = 10,
+            Max = 240
         })
     end)
 
     Run(function() -- SilentAimbot
         local TargetPart
-        local FOV
+        local Fov
         local old, oldMobile
         local rayCheck = RaycastParams.new()
         rayCheck.FilterType = Enum.RaycastFilterType.Exclude
         
         local function aimFunction(...)
             if store.hand and store.hand.Ranged then
-                local WithinMouse = CharacterLib:GetCharacterWithinMouse({
-                    Range = FOV.Value,
+                local WithinMouse = EntityLib:GetClosestEntityWithinMouse({
+                    Range = Fov.Value,
                     Part = 'Root',
                     Players = true
                 })
@@ -396,7 +665,7 @@ Run(function() -- Combat
                 if WithinMouse then
                     rayCheck.FilterDescendantsInstances = {WithinMouse.Character, Camera}
                     rayCheck.CollisionGroup = WithinMouse[TargetPart.Value].CollisionGroup
-                    local offsetpos = CharacterLib.Root.CFrame * skywars.FireOrigin
+                    local offsetpos = EntityLib.Root.CFrame * skywars.FireOrigin
                     local calc = Prediction.SolveTrajectory(offsetpos.Position, 200, math.abs(skywars.Gravity), WithinMouse[TargetPart.Value].Position, WithinMouse[TargetPart.Value].Velocity, workspace.Gravity, WithinMouse.HipHeight, nil, rayCheck)
         
                     if calc then
@@ -430,9 +699,9 @@ Run(function() -- Combat
         })
         TargetPart = ProjectileAimbot:CreateDropdown({
             Name = 'Part',
-            List = {'RootPart', 'Head'}
+            List = {'Root', 'Head'}
         })
-        FOV = ProjectileAimbot:CreateSlider({
+        Fov = ProjectileAimbot:CreateSlider({
             Name = 'FOV',
             Min = 1,
             Max = 1000,
@@ -465,7 +734,7 @@ Run(function() -- Combat
             Function = function(callback)
                 if callback then
                     repeat
-                        local Character = CharacterLib:GetClosestCharacter({
+                        local Character = EntityLib:GetClosestEntity({
                             Part = 'Root',
                             Range = Range.Value,
                             Players = true,
@@ -473,12 +742,12 @@ Run(function() -- Combat
                         })
         
                         if Character then
-                            local offsetpos = CharacterLib.Root.CFrame * skywars.FireOrigin
+                            local offsetpos = EntityLib.Root.CFrame * skywars.FireOrigin
                             for _, item in getProjectiles() do
                                 if (FireDelays[item] or 0) < tick() then
                                     rayCheck.FilterDescendantsInstances = {Character.Character, Camera}
-                                    rayCheck.CollisionGroup = Character.Character.Root.CollisionGroup
-                                    local calc = Prediction.SolveTrajectory(offsetpos.Position, 200, math.abs(skywars.Gravity), Character.Character.Root.Position, Character.Character.Root.AssemblyLinearVelocity, workspace.Gravity, Character.Character.HipHeight, nil, rayCheck)
+                                    rayCheck.CollisionGroup = Character.Root.CollisionGroup
+                                    local calc = Prediction.SolveTrajectory(offsetpos.Position, 200, math.abs(skywars.Gravity), Character.Root.Position, Character.Root.AssemblyLinearVelocity, workspace.Gravity, Character.HipHeight, nil, rayCheck)
         
                                     if calc then
                                         FireDelays[item] = tick() + 0.5
@@ -509,10 +778,7 @@ Run(function() -- Combat
             Name = 'Range',
             Min = 1,
             Max = 50,
-            Default = 50,
-            Suffix = function(val)
-                return val == 1 and 'stud' or 'studs'
-            end
+            Default = 50
         })
     end)
 
@@ -520,6 +786,7 @@ Run(function() -- Combat
         local AutoWin, LootAmount
 
         local function GameInProgress()
+            if workspace:FindFirstChild('Lobby') then return false end
             local SpawnLocations = SafeRef(workspace, {'BlockContainer', 'Map', 'SpawnLocations'})
             if SpawnLocations then
                 for _, v in SpawnLocations:GetChildren() do
@@ -527,16 +794,16 @@ Run(function() -- Combat
                         return false
                     end
                 end
-                return true
+                return false
             end
-            return false
+            return true
         end
 
         local Params = RaycastParams.new()
         Params.RespectCanCollide = true
         Params.FilterType = Enum.RaycastFilterType.Include
 
-        local Up = vector.create(0, 1000, 0)
+        local UpOffset = vector.yAxis * 1000
         local CFrameOffset = CFrame.new(0, 3, 6)
         
         AutoWin = Combat:CreateModule({
@@ -572,7 +839,7 @@ Run(function() -- Combat
                 end
                 for _, Chest in Chests:GetChildren() do
                     if Chest:IsA("Model") and Chest.PrimaryPart and Chest.Name == "ChestTierFour" then
-                        CharacterLib.Root.CFrame = Chest.PrimaryPart.CFrame
+                        EntityLib.Root.CFrame = Chest.PrimaryPart.CFrame
                         Found += 1
                         task.wait(0.5)
                         if Found >= LootAmount.Value then break end
@@ -580,11 +847,12 @@ Run(function() -- Combat
                 end
                 if not AutoWin.Enabled then return end
                 local AllPlayers = Players:GetPlayers()
+                table.remove(AllPlayers, table.find(AllPlayers, Plr))
                 local Target = 1
                 local Offset = vector.zero
 
                 AutoWin:Clean(Players.PlayerAdded:Connect(function(Player)
-                    AllPlayers[#AllPlayers+1] = Player
+                    AllPlayers[#AllPlayers + 1] = Player
                 end))
 
                 AutoWin:Clean(Players.PlayerRemoving:Connect(function(Player)
@@ -594,44 +862,40 @@ Run(function() -- Combat
                     end
                 end))
 
-                AutoWin:Clean(RunService.PreSimulation:Connect(function(Delta)
-                    local Index = table.find(AllPlayers, Plr)
-                    if Index then
-                        table.remove(AllPlayers, Index)
-                    end
+                AutoWin:Clean(RunService.PreSimulation:Connect(function()
                     if #AllPlayers == 0 then return end
                     if AllPlayers[Target] and not AllPlayers[Target]:GetAttribute("Alive") or AllPlayers[Target] and AllPlayers[Target]:GetAttribute("TeamId") == Plr:GetAttribute("TeamId") then Target += 1 end
                     if Target > #AllPlayers then Target = 1 end
 
-                    local Char = CharacterLib:FindCharacter(AllPlayers[Target])
-                    if not (Char and CharacterLib.Alive) then return end
+                    local Char = EntityLib:FindEntity(AllPlayers[Target])
+                    if not (Char and EntityLib.Alive) then return end
                     
                     Params.FilterDescendantsInstances = {workspace.BlockContainer}
 
-                    local Raycast = workspace:Raycast(Char.Root.Position, Char.Root.Position - Up, Params)
+                    local Raycast = workspace:Raycast(Char.Root.Position, Char.Root.Position - UpOffset, Params)
                     if not Raycast and Char.Root.AssemblyLinearVelocity.Y <= -100 then Target += 1 return end
 
                     if Plr:GetAttribute("Health") < 25 then
-                        Offset = Up
+                        Offset = vector.yAxis * 1000
                     else
                         Offset = vector.zero
                     end
                     
-                    CharacterLib.Root.AssemblyLinearVelocity = vector.zero
-                    CharacterLib.Root.CFrame = Char.Root.CFrame:ToWorldSpace(CFrameOffset) + Offset
+                    EntityLib.Root.AssemblyLinearVelocity = vector.zero
+                    EntityLib.Root.CFrame = Char.Root.CFrame:ToWorldSpace(CFrameOffset) + Offset
                     RunService.PostSimulation:Wait()
 
-                    Raycast = workspace:Raycast(Char.Root.Position, Char.Root.Position - Up, Params)
+                    Raycast = workspace:Raycast(Char.Root.Position, Char.Root.Position - UpOffset, Params)
                     if not Raycast and Char.Root.AssemblyLinearVelocity.Y <= -100 then Target += 1 return end
 
                     if Plr:GetAttribute("Health") < 25 then
-                        Offset = Up
+                        Offset = UpOffset
                     else
                         Offset = vector.zero
                     end
 
-                    CharacterLib.Root.AssemblyLinearVelocity = vector.zero
-                    CharacterLib.Root.CFrame = Char.Root.CFrame:ToWorldSpace(CFrameOffset) + Offset
+                    EntityLib.Root.AssemblyLinearVelocity = vector.zero
+                    EntityLib.Root.CFrame = Char.Root.CFrame:ToWorldSpace(CFrameOffset) + Offset
                 end))
             end,
         })
@@ -666,21 +930,20 @@ Run(function() -- Player
             Info = 'Prevents you from taking fall damage.',
             Enabled = function()
                 while NoFall.Enabled and RunService.PreSimulation:Wait() do
-                    if CharacterLib.Alive then
-                        if CharacterLib.Humanoid.FloorMaterial ~= Air then
-                            GroundPosition = CharacterLib.Root.Position
+                    if EntityLib.Alive then
+                        if EntityLib.Humanoid.FloorMaterial ~= Air then
+                            GroundPosition = EntityLib.Root.Position
                         end
-                        if (GroundPosition.Y - CharacterLib.Root.Position.Y) > 10 then
-                            local Raycast = workspace:Raycast(CharacterLib.Root.Position, Down, Params)
+                        if (GroundPosition.Y - EntityLib.Root.Position.Y) > 10 then
+                            local Raycast = workspace:Raycast(EntityLib.Root.Position, Down, Params)
                             if not Raycast then
-                                CharacterLib.Humanoid:ChangeState(Ragdoll)
-                                Notify({Text = 'Stopped fall damage.', Duration = 1})
+                                EntityLib.Humanoid:ChangeState(Ragdoll)
                                 task.wait(0.1)
-                                CharacterLib.Humanoid:ChangeState(Running)
+                                EntityLib.Humanoid:ChangeState(Running)
                                 local TimeOut = os.clock() + 0.05
                                 repeat
                                     RunService.PostSimulation:Wait()
-                                until CharacterLib.Humanoid.FloorMaterial ~= Air or os.clock() >= TimeOut
+                                until EntityLib.Humanoid.FloorMaterial ~= Air or os.clock() >= TimeOut
                             end
                         end
                     end
@@ -757,7 +1020,7 @@ Run(function() -- Movement
                         return data
                     end
         
-                    Sprint:Clean(CharacterLib.Events.LocalAdded:Connect(function()
+                    Sprint:Clean(EntityLib.Events.LocalAdded:Connect(function()
                         skywars.SprintingController:disableSprinting()
                     end))
         
@@ -775,7 +1038,6 @@ Run(function() -- Movement
         local Horizontal
         local Vertical
         local Chance
-        local Targeting
         local connection
         local rand, old = Random.new()
         
@@ -783,7 +1045,7 @@ Run(function() -- Movement
             if rand:NextNumber(0, 100) > Chance.Value then return old(...) end
         
             local args = table.pack(...)
-            local check = (not Targeting.Enabled) or CharacterLib:GetClosestCharacter({
+            local check = EntityLib:GetClosestEntity({
                 Range = 50,
                 Part = 'Root',
                 Players = true
@@ -792,7 +1054,7 @@ Run(function() -- Movement
             if check then
                 local hort, vert = (Horizontal.Value / 100), (Vertical.Value / 100)
                 if hort == 0 and vert == 0 then return end
-                args[1] = Vector3.new(args[1].X * hort, args[1].Y * vert, args[1].Z * hort)
+                args[1] = vector.create(args[1].X * hort, args[1].Y * vert, args[1].Z * hort)
             end
         
             return old(unpack(args, 1, args.n))
@@ -803,7 +1065,7 @@ Run(function() -- Movement
             Info = 'Reduces knockback taken',
             Function = function(callback)
                 if callback then
-                    connection = getconnections(getupvalue(getupvalue(skywars.Remotes[remotes['PlayerVelocityController:onStart']].connect, 1).fireClient, 1).OnClientEvent)[1]
+                    connection = getconnections(debug.getupvalue(debug.getupvalue(skywars.Remotes[remotes['PlayerVelocityController:onStart']].connect, 1).fireClient, 1).OnClientEvent)[1]
                     if not connection then return end
         
                     old = hookfunction(connection.Function, function(...)
@@ -838,7 +1100,88 @@ Run(function() -- Movement
             Default = 100,
             Suffix = '%'
         })
-        Targeting = Velocity:CreateToggle({Name = 'Only when targeting'})
+    end)
+end)
+
+Run(function() -- Visuals
+    Run(function() -- Viewmodel
+        local Viewmodel
+        local OldTool
+        
+        local function LocalAdded()
+            local function ToolAdded(Tool)
+                OldTool = Tool
+                ViewmodelTool = Instance.fromExisting(OldTool.Handle)
+                ViewmodelTool.CanCollide = false
+                ViewmodelTool.Massless = true
+                ViewmodelTool.Anchored = true
+                ViewmodelTool.Parent = Camera
+                ViewmodelTool.LocalTransparencyModifier = 0
+                OldTool.Handle.LocalTransparencyModifier = 1
+            end
+
+            Viewmodel:Clean(EntityLib.Character.ChildAdded:Connect(function(Obj)
+                if Obj:IsA('Tool') then 
+                    ToolAdded(Obj)
+                end
+            end))
+            
+            Viewmodel:Clean(EntityLib.Character.ChildRemoved:Connect(function(Obj)
+                if Obj == OldTool then 
+                    ViewmodelTool:Destroy()
+                    ViewmodelTool = nil
+                    OldTool = nil
+                end
+            end))
+        end
+
+        local function LocalRemoved()
+            Viewmodel:CleanUp()
+            if ViewmodelTool then
+                ViewmodelTool:Destroy()
+                ViewmodelTool = nil
+            end
+        end
+        
+        Viewmodel = Visuals:CreateModule({
+            Name = 'Viewmodel',
+            Info = 'Replaces the default viewmodel',
+            Function = function(Enabled)
+                if Enabled then
+                    ViewmodelMotor = Instance.new('Motor6D')
+
+                    Viewmodel:Clean(EntityLib.Events.LocalAdded:Connect(LocalAdded))
+                    Viewmodel:Clean(EntityLib.Events.LocalRemoved:Connect(LocalRemoved))
+                    if EntityLib.Alive then 
+                        LocalAdded()
+                    end
+
+                    Viewmodel:Clean(RunService.PreRender:Connect(function()
+                        if ViewmodelTool then 
+                            local dcf = ((CFrame.new(2.06, -2.44, -2.24) * CFrame.new(0.6, -0.2, -0.6)) * CFrame.Angles(math.rad(99), math.rad(2), math.rad(-4))) * ViewmodelMotor.C0
+                            local offsetcf = (CFrame.new(0, -0.15, -1.56) * CFrame.Angles(math.rad(-90), math.rad(-90), 0))
+                            ViewmodelTool.CFrame = ((Camera.CFrame * dcf) * offsetcf)
+                            local ThirdPerson = vector.magnitude(Camera.CFrame.Position - Camera.Focus.Position) > 0.6
+                            ViewmodelTool.LocalTransparencyModifier = ThirdPerson and 1 or 0
+                            OldTool.Handle.LocalTransparencyModifier = ThirdPerson and 0 or 1
+                        end
+                    end))
+                else
+                    if OldTool then
+                        OldTool.Handle.LocalTransparencyModifier = 0
+                        OldTool = nil
+                    end
+                    if ViewmodelTool then 
+                        ViewmodelTool:Destroy()
+                        ViewmodelTool = nil
+                    end
+                    if ViewmodelMotor then
+                        ViewmodelMotor:Destroy()
+                        ViewmodelMotor =  nil
+                    end
+                end
+            end,
+        })
     end)
 end)
 
@@ -866,8 +1209,8 @@ Run(function() -- World
                     end))
         
                     repeat
-                        if CharacterLib.Alive and not Open.Enabled then
-                            local localPosition = CharacterLib.Root.Position
+                        if EntityLib.Alive and not Open.Enabled then
+                            local localPosition = EntityLib.Root.Position
                             for i, v in chests do
                                 if v.PrimaryPart and (localPosition - v.PrimaryPart.Position).Magnitude <= Range.Value and not Delay[v] then
                                     skywars.Remotes[remotes.openChest]:fire(v)
@@ -885,10 +1228,7 @@ Run(function() -- World
             Name = 'Range',
             Min = 0,
             Max = 10,
-            Default = 10,
-            Suffix = function(val)
-                return val == 1 and 'stud' or 'studs'
-            end
+            Default = 10
         })
         Open = ChestSteal:CreateToggle({Name = 'GUI Check'})
     end)
@@ -900,17 +1240,17 @@ Run(function() -- World
         local Downwards
         local Diagonal
         local LimitItem
-        local adjacent, lastpos = {}, Vector3.zero
+        local adjacent, lastpos = {}, vector.zero
         
         for x = -3, 3, 3 do
             for y = -3, 3, 3 do
                 for z = -3, 3, 3 do
-                    local vec = Vector3.new(x, y, z)
+                    local vec = vector.create(x, y, z)
                     if vec.Y ~= 0 and (vec.X ~= 0 or vec.Z ~= 0) then
                         continue
                     end
         
-                    if vec ~= Vector3.zero then
+                    if vec ~= vector.zero then
                         table.insert(adjacent, vec)
                     end
                 end
@@ -922,7 +1262,7 @@ Run(function() -- World
             for x = s.X, e.X, 3 do
                 for y = s.Y, e.Y, 3 do
                     for z = s.Z, e.Z, 3 do
-                        local vec = Vector3.new(x, y, z)
+                        local vec = vector.create(x, y, z)
                         if store.blocks[vec] then
                             table.insert(list, vec)
                         end
@@ -933,23 +1273,23 @@ Run(function() -- World
         end
         
         local function roundPos(vec)
-            return Vector3.new(math.round(vec.X / 3) * 3, math.round(vec.Y / 3) * 3, math.round(vec.Z / 3) * 3)
+            return vector.create(math.round(vec.X / 3) * 3, math.round(vec.Y / 3) * 3, math.round(vec.Z / 3) * 3)
         end
         
         local function nearCorner(poscheck, pos)
-            local startpos = poscheck - Vector3.new(3, 3, 3)
-            local endpos = poscheck + Vector3.new(3, 3, 3)
+            local startpos = poscheck - vector.create(3, 3, 3)
+            local endpos = poscheck + vector.create(3, 3, 3)
             local check = poscheck + (pos - poscheck).Unit * 100
             if math.abs(check.Y - startpos.Y) > 3 then
-                return Vector3.new(poscheck.X, math.clamp(check.Y, startpos.Y, endpos.Y), poscheck.Z)
+                return vector.create(poscheck.X, math.clamp(check.Y, startpos.Y, endpos.Y), poscheck.Z)
             end
         
-            return Vector3.new(math.clamp(check.X, startpos.X, endpos.X), math.clamp(check.Y, startpos.Y, endpos.Y), math.clamp(check.Z, startpos.Z, endpos.Z))
+            return vector.create(math.clamp(check.X, startpos.X, endpos.X), math.clamp(check.Y, startpos.Y, endpos.Y), math.clamp(check.Z, startpos.Z, endpos.Z))
         end
         
         local function blockProximity(pos)
             local mag, returned = 60
-            local tab = getBlocksInPoints(pos - Vector3.new(21, 21, 21), pos + Vector3.new(21, 21, 21))
+            local tab = getBlocksInPoints(pos - vector.create(21, 21, 21), pos + vector.create(21, 21, 21))
         
             for _, v in tab do
                 local blockpos = nearCorner(v, pos)
@@ -982,27 +1322,26 @@ Run(function() -- World
             Function = function(callback)
                 if callback then
                     repeat
-                        if CharacterLib.Alive then
+                        if EntityLib.Alive then
                             local wool = (not LimitItem.Enabled) and getBlock() or store.hand.Rewrite and store.hand
                             if wool then
-                                local root = CharacterLib.Root
+                                local root = EntityLib.Root
                                 if Tower.Enabled and UIS:IsKeyDown(Enum.KeyCode.Space) and (not UIS:GetFocusedTextBox()) then
-                                    root.Velocity = Vector3.new(root.Velocity.X, 38, root.Velocity.Z)
+                                    root.Velocity = vector.create(root.Velocity.X, 38, root.Velocity.Z)
                                 end
         
                                 for i = Expand.Value, 1, -1 do
-                                    local currentpos = roundPos(root.Position - Vector3.new(0, CharacterLib.HipHeight + (Downwards.Enabled and UIS:IsKeyDown(Enum.KeyCode.LeftShift) and 4.5 or 1.5), 0) + CharacterLib.Humanoid.MoveDirection * (i * 3))
+                                    local currentpos = roundPos(root.Position - vector.create(0, EntityLib.HipHeight + (Downwards.Enabled and UIS:IsKeyDown(Enum.KeyCode.LeftShift) and 4.5 or 1.5), 0) + EntityLib.Humanoid.MoveDirection * (i * 3))
                                     if Diagonal.Enabled then
-                                        if math.abs(math.round(math.deg(math.atan2(-CharacterLib.Humanoid.MoveDirection.X, -CharacterLib.Humanoid.MoveDirection.Z)) / 45) * 45) % 90 == 45 then
+                                        if math.abs(math.round(math.deg(math.atan2(-EntityLib.Humanoid.MoveDirection.X, -EntityLib.Humanoid.MoveDirection.Z)) / 45) * 45) % 90 == 45 then
                                             local dt = (lastpos - currentpos)
-                                            if ((dt.X == 0 and dt.Z ~= 0) or (dt.X ~= 0 and dt.Z == 0)) and ((lastpos - root.Position) * Vector3.new(1, 0, 1)).Magnitude < 2.5 then
+                                            if ((dt.X == 0 and dt.Z ~= 0) or (dt.X ~= 0 and dt.Z == 0)) and ((lastpos - root.Position) * vector.create(1, 0, 1)).Magnitude < 2.5 then
                                                 currentpos = lastpos
                                             end
                                         end
                                     end
         
-                                    local block = store.blocks[currentpos]
-                                    if not block then
+                                    if not store.blocks[currentpos] then
                                         local blockpos = checkAdjacent(currentpos) and currentpos or blockProximity(currentpos)
                                         if blockpos then
                                             local block = skywars.ItemMeta[wool.Rewrite.Type:gsub('{TeamId}', skywars.TeamController:getPlayerTeamId(Plr) or 'White')]
@@ -1053,7 +1392,7 @@ Run(function() -- World
         local function getLowGround()
             local mag = math.huge
             for pos in store.blocks do
-                if pos.Y < mag and not store.blocks[pos + Vector3.new(0, 3, 0)] then
+                if pos.Y < mag and not store.blocks[pos + vector.create(0, 3, 0)] then
                     mag = pos.Y
                 end
             end
@@ -1069,21 +1408,21 @@ Run(function() -- World
                     if pos ~= math.huge then
                         local middle = next(store.blocks)
                         part = Instance.new('Part')
-                        part.Size = Vector3.new(10000, 1, 10000)
+                        part.Size = vector.create(10000, 1, 10000)
                         part.Transparency = Color.Transparency
                         part.Material = Enum.Material[Material.Value]
                         part.Color = Color.Color
-                        part.Position = Vector3.new(middle.X, pos - 2, middle.Z)
+                        part.Position = vector.create(middle.X, pos - 2, middle.Z)
                         part.CanCollide = Mode.Value == 'Collide'
                         part.Anchored = true
                         part.CanQuery = false
                         part.Parent = workspace
                         AntiFall:Clean(part.Touched:Connect(function(touchedpart)
-                            if touchedpart.Parent == Plr.Character and CharacterLib.Alive and debounce < tick() then
-                                local root = CharacterLib.Root
+                            if touchedpart.Parent == Plr.Character and EntityLib.Alive and debounce < tick() then
+                                local root = EntityLib.Root
                                 debounce = tick() + 0.1
                                 if Mode.Value == 'Velocity' then
-                                    root.Velocity = Vector3.new(root.Velocity.X, 100, root.Velocity.Z)
+                                    root.Velocity = vector.create(root.Velocity.X, 100, root.Velocity.Z)
                                 end
                             end
                         end))
@@ -1159,7 +1498,7 @@ Run(function() -- World
                 local create = skywars.Roact.createElement
                 local percent = math.clamp(health / maxHealth, 0, 1)
                 local part = Instance.new('Part')
-                part.Size = Vector3.one
+                part.Size = vector.one
                 part.CFrame = block.PrimaryPart.CFrame
                 part.Transparency = 1
                 part.Anchored = true
@@ -1169,7 +1508,7 @@ Run(function() -- World
         
                 BreakerUI = skywars.Roact.mount(create('BillboardGui', {
                     Size = UDim2.fromOffset(249, 102),
-                    StudsOffset = Vector3.new(0, 2.5, 0),
+                    StudsOffset = vector.create(0, 2.5, 0),
                     Adornee = part,
                     MaxDistance = 40,
                     AlwaysOnTop = true
@@ -1230,10 +1569,7 @@ Run(function() -- World
             task.delay(0, function()
                 local val = BreakerRef:getValue()
                 if val then
-                    TweenService:Create(val, TweenInfo.new(0.3), {
-                        Size = UDim2.fromScale(progress, 1),
-                        BackgroundColor3 = Color3.fromHSV(math.clamp(progress / 2.5, 0, 1), 0.89, 0.75)
-                    }):Play()
+                    TweenService:Create(val, TweenInfo.new(0.3), {Size = UDim2.fromScale(progress, 1), BackgroundColor3 = Color3.fromHSV(math.clamp(progress / 2.5, 0, 1), 0.89, 0.75)}):Play()
                 end
             end)
         end
@@ -1247,8 +1583,8 @@ Run(function() -- World
                     local oldblockhealth = 0
         
                     repeat
-                        if CharacterLib.Alive and store.hand then
-                            local localPosition = CharacterLib.Root.CFrame.Position
+                        if EntityLib.Alive and store.hand then
+                            local localPosition = EntityLib.Root.CFrame.Position
                             for _, v in eggs do
                                 if v.PrimaryPart and (localPosition - v.PrimaryPart.Position).Magnitude < Range.Value then
                                     local hp = v:GetAttribute('Health') or 0
@@ -1263,13 +1599,12 @@ Run(function() -- World
                                         oldblockhealth = hp
                                     end
         
-                                    store.noShoot = tick() + 1
                                     if hp <= 0 then continue end
         
                                     if store.hand.Melee then
                                         skywars.Remotes[remotes['MeleeController:attemptStrikeDesktop']]:fire(v)
                                     elseif store.hand.Pickaxe then
-                                        skywars.Remotes[remotes.hitBlock]:fire((v.PrimaryPart.Position + Vector3.new(0, 1.5, 0)) // 1)
+                                        skywars.Remotes[remotes.hitBlock]:fire((v.PrimaryPart.Position + vector.create(0, 1.5, 0)) // 1)
                                     end
                                 end
                             end
@@ -1285,10 +1620,7 @@ Run(function() -- World
             Name = 'Break range',
             Min = 1,
             Max = 40,
-            Default = 40,
-            Suffix = function(val)
-                return val == 1 and 'stud' or 'studs'
-            end
+            Default = 40
         })
     end)
 end)
@@ -1314,5 +1646,3 @@ Run(function() -- Other
         })
     end)
 end)
-
-Notify({Text = 'Credits to @7GrandDad for the skywars modules.', Duration = 5})

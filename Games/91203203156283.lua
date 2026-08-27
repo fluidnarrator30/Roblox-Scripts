@@ -9,7 +9,7 @@ local ReplicatedStorage: ReplicatedStorage = GetService("ReplicatedStorage")
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 
 local World = Categories.World
 local Other = Categories.Other
@@ -32,6 +32,7 @@ local function GetPlot()
             return Plot
         end
     end
+    
     return nil
 end
 
@@ -44,14 +45,14 @@ Run(function() -- World
             Info = 'Automatically collects money from your femboys.',
             Enabled = function()
                 while AutoCollect.Enabled do
-                    if CharacterLib.Alive then
+                    if EntityLib.Alive then
                         local Plot = GetPlot()
                         if Plot then
                             for _, Slot in Plot.Slots:GetChildren() do
                                 if Slot:GetAttribute('CharacterId') ~= nil then
-                                    firetouchinterest(CharacterLib.Root, Slot.Collecter.Button, true) -- they misspelled 'Collector' bruh
+                                    firetouchinterest(EntityLib.Root, Slot.Collecter.Button, true) -- they misspelled 'Collector' bruh
                                     task.wait()
-                                    firetouchinterest(CharacterLib.Root, Slot.Collecter.Button, false)
+                                    firetouchinterest(EntityLib.Root, Slot.Collecter.Button, false)
                                     task.wait()
                                 end
                                 if not AutoCollect.Enabled then break end
@@ -92,17 +93,17 @@ Run(function() -- Other
             Enabled = function()
                 local Sell = ReplicatedStorage.Remotes.ServerBoundSellCharacter
                 while AutoDelete.Enabled do
-                    if CharacterLib.Alive then
+                    if EntityLib.Alive then
                         for _, Femboy in Plr.Backpack:GetChildren() do
                             local Rarity = Femboy:GetAttribute('Rarity')
                             if Rarity ~= nil and Rarities:Find(Rarity) then
-                                CharacterLib.Humanoid:EquipTool(Femboy)
+                                EntityLib.Humanoid:EquipTool(Femboy)
                                 task.wait()
                                 Sell:FireServer(false)
                                 local TimeOut = os.clock() + 1
                                 repeat
                                     task.wait()
-                                until Femboy.Parent ~= CharacterLib.Character or not AutoDelete.Enabled or os.clock() >= TimeOut
+                                until Femboy.Parent ~= EntityLib.Character or not AutoDelete.Enabled or os.clock() >= TimeOut
                                 if not AutoDelete.Enabled then break end
                             end
                         end

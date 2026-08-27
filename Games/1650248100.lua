@@ -6,36 +6,35 @@ end
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 
-local Players: Players = GetService("Players")
-local TweenService: TweenService = GetService("TweenService")
-local RunService: RunService = GetService("RunService")
-local ReplicatedStorage: ReplicatedStorage = GetService("ReplicatedStorage")
+local Players: Players = GetService('Players')
+local RunService: RunService = GetService('RunService')
+local ReplicatedStorage: ReplicatedStorage = GetService('ReplicatedStorage')
 
 local Movement = Categories.Movement
 
 local Plr = Players.LocalPlayer
 
-local Goal = Vector3.new(0, 15300, 40030)
+local Goal = vector.create(0, 15300, 40030)
 
 do
     local TweenSpeed
     local AutoRebirth
 
     local function TeleportToEnd()
-        if not CharacterLib.Alive then return end
+        if not EntityLib.Alive then return end
 
-        local Start = CharacterLib.Root.Position
+        local Start = EntityLib.Root.Position
         local Alpha = 0
 
         while true do
-            if not CharacterLib.Alive then break end
-            Alpha += RunService.Heartbeat:Wait() / TweenSpeed.Value
+            if not EntityLib.Alive then break end
+            Alpha += RunService.PostSimulation:Wait() / TweenSpeed.Value
             if Alpha >= 1 then
                 Alpha = 1
             end
-            CharacterLib.Root.CFrame = CFrame.new(vector.lerp(Start, Goal, Alpha))
+            EntityLib.Root.CFrame = CFrame.new(vector.lerp(Start, Goal, Alpha))
             if Alpha == 1 then
                 break
             end
@@ -63,6 +62,7 @@ do
         Name = "Teleport To End",
         Function = TeleportToEnd
     })
+
     TweenSpeed = TeleportToEndButton:CreateSlider({
         Name = "Speed",
         Default = 1,

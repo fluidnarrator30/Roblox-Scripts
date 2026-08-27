@@ -4,19 +4,20 @@ local function GetService(Service)
     return cloneref(game:GetService(Service))
 end
 
-local Players: Players = GetService("Players")
-local RunService: RunService = GetService("RunService")
-local ReplicatedStorage: ReplicatedStorage = GetService("ReplicatedStorage")
-local PathfindingService: PathfindingService = GetService("PathfindingService")
-local TweenService: TweenService = GetService("TweenService")
+local Players: Players = GetService('Players')
+local RunService: RunService = GetService('RunService')
+local ReplicatedStorage: ReplicatedStorage = GetService('ReplicatedStorage')
+local PathfindingService: PathfindingService = GetService('PathfindingService')
+local TweenService: TweenService = GetService('TweenService')
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
-local CustomLocalMethods = TidalWave.Libraries.CustomLocalMethods
+local EntityLib = TidalWave.Libraries.EntityLib
+local ObjectFunctions = TidalWave.Libraries.ObjectFunctions
 local Modules = TidalWave.Modules
 
-local Plr = Players.LocalPlayer
+local Plr: Player = Players.LocalPlayer
+local Camera: Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass('Camera')
 
 local Combat = Categories.Combat
 local PlayerCategory = Categories.Player
@@ -29,23 +30,42 @@ local getcustomasset = getcustomasset
 local fireclickdetector = fireclickdetector
 local isfile = isfile
 
+local vector = table.clone(vector)
+vector.xAxis = vector.create(1, 0, 0)
+vector.yAxis = vector.create(0, 1, 0)
+vector.zAxis = vector.create(0, 0, 1)
+vector.hort = vector.create(1, 0, 1)
+vector.huge = vector.create(math.huge, math.huge, math.huge)
+vector.hugeX = vector.create(math.huge, 0, 0)
+vector.hugeY = vector.create(0, math.huge, 0)
+vector.hugeZ = vector.create(0, 0, math.huge)
+vector.hugeXZ = vector.create(math.huge, 0, math.huge)
+function vector.round(Vec)
+    return vector.create(math.round(Vec.X), math.round(Vec.Y), math.round(Vec.Z))
+end
+
+TidalWave:Clean(workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(function()
+    Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass('Camera')
+end))
+
 local function Notify(Properties)
     TidalWave:Notify(Properties)
 end
 
 local function NotifyPoopSploit(Function)
     Notify({
-        Title = "Poop Sploit",
-        Text = `{TidalWave.Executor or "Your Executor"} doesn't support "{Function}"`,
-        Type = "Error",
-        Duration = 4,
+        Title = 'Poop Sploit',
+        Text = `Your executor doesn't support '{Function}'`,
+        Type = 'Error',
+        Duration = 5,
     })
 end
 
 local function GetMap()
-    if ReplicatedStorage.CurrentMap:GetAttribute("MapLoaded") and ReplicatedStorage.CurrentMap.Value and ReplicatedStorage.CurrentMap.Value.Parent then
+    if ReplicatedStorage.CurrentMap:GetAttribute('MapLoaded') and ReplicatedStorage.CurrentMap.Value and ReplicatedStorage.CurrentMap.Value.Parent then
         return ReplicatedStorage.CurrentMap.Value
     end
+
     return nil
 end
 
@@ -54,7 +74,7 @@ local function Run(f)
 end
 
 local function SafeRef(Obj, Path)
-    return CustomLocalMethods:SafeRef(Obj, Path)
+    return ObjectFunctions:SafeRef(Obj, Path)
 end
 
 local function IsBeast(Player)
@@ -72,50 +92,52 @@ local function GetBeast()
 end
 
 local function GetFullName(Obj)
-    return CustomLocalMethods:GetFullName(Obj)
+    return ObjectFunctions:GetFullName(Obj)
 end
 
 Run(function()
-    function CharacterLib:IsTeammate(Character)
+    function EntityLib:IsTeammate(Character)
         if TidalWave:IsFriend(Character.Player) then return true end
-        local LocalIsBeast = SafeRef(Plr, {"TempPlayerStatsModule", "IsBeast"})
+        local LocalIsBeast = SafeRef(Plr, {'TempPlayerStatsModule', 'IsBeast'})
         if LocalIsBeast and LocalIsBeast.Value then
             return false
         elseif LocalIsBeast and not LocalIsBeast.Value then
-            local IsBeast = SafeRef(Character.Player, {"TempPlayerStatsModule", "IsBeast"})
+            local IsBeast = SafeRef(Character.Player, {'TempPlayerStatsModule', 'IsBeast'})
             return IsBeast and not IsBeast.Value
         end
+
+        return false
     end
 
-    function CharacterLib:GetTeamColor(Character)
+    function EntityLib:GetTeamColor(Character)
         local IsFriend, FriendColor = TidalWave:IsFriend(Character.Player)
-        return (IsFriend and FriendColor) or (CharacterLib:IsTeammate(Character) and Color3.fromRGB(0, 255, 0)) or Color3.fromRGB(255, 0, 0)
+        return (IsFriend and FriendColor) or (EntityLib:IsTeammate(Character) and Color3.fromRGB(0, 255, 0)) or Color3.fromRGB(255, 0, 0)
     end
 
-    function CharacterLib:GetUpdateConnections(Char)
-        local Health = SafeRef(Char.Player, {"TempPlayerStatsModule", "Health"})
+    function EntityLib:GetUpdateConnections(Char)
+        local Health = SafeRef(Char.Player, {'TempPlayerStatsModule', 'Health'})
         return {
-            Health and Health:GetPropertyChangedSignal("Value") or nil
+            Health and Health:GetPropertyChangedSignal('Value') or nil
         }
     end
     
-    function CharacterLib:GetTeamUpdateConnections(Char)
-        local IsBeast = SafeRef(Char.Player, {"TempPlayerStatsModule", "Health"})
+    function EntityLib:GetTeamUpdateConnections(Char)
+        local IsBeast = SafeRef(Char.Player, {'TempPlayerStatsModule', 'Health'})
         return {
-            IsBeast and IsBeast:GetPropertyChangedSignal("Value") or nil
+            IsBeast and IsBeast:GetPropertyChangedSignal('Value') or nil
         }
     end
 
-    function CharacterLib:GetCharacterProperties(Char)
-        local Health = SafeRef(Char.Player, {"TempPlayerStatsModule", "Health"})
-        local IsBeast = SafeRef(Char.Player, {"TempPlayerStatsModule", "Health"})
+    function EntityLib:GetCharacterProperties(Char)
+        local Health = SafeRef(Char.Player, {'TempPlayerStatsModule', 'Health'})
+        local IsBeast = SafeRef(Char.Player, {'TempPlayerStatsModule', 'Health'})
         return {
             Health = (IsBeast and IsBeast.Value and 100) or (Health and Health.Value) or 100,
             MaxHealth = 100
         }
     end
 
-    CharacterLib:Restart()
+    EntityLib:Restart()
 end)
 
 Run(function() -- Combat
@@ -126,12 +148,12 @@ Run(function() -- Combat
             Name = "KillAura",
             Enabled = function()
                 repeat
-                    local Character = CharacterLib:GetClosestCharacter({
+                    local Character = EntityLib:GetClosestEntity({
                         Range = Range.Value,
                         WallCheck = WallCheck.Enabled
                     })
                     if Character then
-                        local Hammer = CharacterLib.Alive and CharacterLib:FindFirstChild("Hammer")
+                        local Hammer = EntityLib.Alive and EntityLib:FindFirstChild("Hammer")
                         local HammerEvent = Hammer and Hammer:FindFirstChild("HammerEvent")
                         if HammerEvent then
                             HammerEvent:FireServer("HammerHit", Character.Root)
@@ -163,9 +185,9 @@ Run(function() -- Combat
             Enabled = function()
                 repeat
                     local Beast = GetBeast()
-                    local BeastChar = Beast and CharacterLib:FindCharacter(Beast)
+                    local BeastChar = Beast and EntityLib:FindEntity(Beast)
                     if BeastChar then
-                        local Character = CharacterLib:GetClosestCharacter({
+                        local Character = EntityLib:GetClosestEntity({
                             Origin = BeastChar.Root.Position,
                             Range = Range.Value,
                             WallCheck = WallCheck.Enabled
@@ -261,7 +283,7 @@ Run(function() -- Movement
                     if Cache and Cache.Parent then
                         Cache:FireServer("Jumped")
                     else
-                        for _, v in CharacterLib.List do
+                        for _, v in EntityLib.List do
                             local PowersEvent = SafeRef(v.Character, {"BeastPowers", "PowersEvent"})
                             if PowersEvent then
                                 PowersEvent:FireServer("Jumped")
@@ -445,7 +467,12 @@ Run(function() -- Other
 
         local function SetId(Custom)
             if not SoundObject then return end
-            if Custom then SoundObject.SoundId = Custom return end
+
+            if Custom then
+                SoundObject.SoundId = Custom
+                return
+            end
+
             local Id
             if MusicId.Object.TextBox.Text:match("%.") then
                 Id = getcustomasset(MusicId.Object.TextBox.Text)
@@ -455,6 +482,7 @@ Run(function() -- Other
                     Id = "rbxassetid://" .. Match
                 end
             end
+
             if Id then
                 SoundObject.SoundId = Id
                 SoundObject.RollOffMinDistance = RollOffMinDistance.Value
@@ -502,10 +530,10 @@ Run(function() -- Other
                     if Modules.TerrorRadius.Enabled then
                         Modules.TerrorRadius:Toggle(true)
                     end
-                    for _, Character in CharacterLib.List do
+                    for _, Character in EntityLib.List do
                         task.spawn(OnCharacterAdded, Character)
                     end
-                    CustomBeastMusic:Clean(CharacterLib.Events.CharacterAdded:Connect(OnCharacterAdded))
+                    CustomBeastMusic:Clean(EntityLib.Events.EntityAdded:Connect(OnCharacterAdded))
                 else
                     SetId("rbxassetid://1846863084")
                     SoundObject = nil
@@ -583,11 +611,11 @@ Run(function() -- Other
         local Layer1, Layer2, Layer3, Chase
         local LookAwayThread, WalkAwayThread, StartChaseThread
 
-        local SupportedFileTypes = {"mp3", "ogg", "wav", "flac"}
-        local RequiredFiles = {"Layer 1", "Layer 2", "Layer 3", "Chase"}
+        local SupportedFileTypes = {'mp3', 'ogg', 'wav', 'flac'}
+        local RequiredFiles = {'Layer 1', 'Layer 2', 'Layer 3', 'Chase'}
 
         local function GetBeast()
-            for _, Char in CharacterLib.List do
+            for _, Char in EntityLib.List do
                 if Char.Character:FindFirstChild("Hammer") then
                     return Char.Player
                 end
@@ -602,7 +630,7 @@ Run(function() -- Other
             for i, v in RequiredFiles do
                 local Any = false
                 for _, v2 in SupportedFileTypes do
-                    if isfile(`{v}.{v2}`) then
+                    if isfile(`TidalWave/Assets/{v}.{v2}`) then
                         Tab[i] = getcustomasset(`{v}.{v2}`)
                         Any = true
                         break
@@ -621,15 +649,20 @@ Run(function() -- Other
                         table.insert(Missing, RequiredFiles[i] .. ".mp3")
                     end
                 end
-                Notify({Text = `Failed to get assets.\nMissing files: {table.concat(Missing, ", ")}`})
+
+                Notify({
+                    Text = `Failed to find required sounds for TerrorRadius.\nMissing files: {table.concat(Missing, ", ")}`,
+                    Duration = 10,
+                    Type = 'Error'
+                })
+
                 return nil
             end
 
-            return unpack(Tab)
+            return table.unpack(Tab)
         end
         
         local Tweens = {}
-        local LookVectorMod = vector.create(1, 0, 1)
 
         local function Tween(Object, Info, Goal)
             if Tweens[Object] then
@@ -677,15 +710,15 @@ Run(function() -- Other
         end
 
         TerrorRadius = Other:CreateModule({
-            Name = "TerrorRadius",
-            Info = "Allows you to have a custom terror radius.\nYou must have 4 sound files in your workspace folder for this to work: \"Layer 1.mp3\", \"Layer 2.mp3\", \"Layer 3.mp3\", \"Chase.mp3\"\nSupports mp3, ogg, wav and flac files.",
+            Name = 'TerrorRadius',
+            Info = 'Allows you to have a custom terror radius\nYou must have 4 sound files in the TidalWave/Assets folder for this to work: "Layer 1.mp3", "Layer 2.mp3", "Layer 3.mp3", "Chase.mp3"\nSupports mp3, ogg, wav and flac files',
             Function = function(Enabled)
                 if Enabled then
                     if not getcustomasset then NotifyPoopSploit("getcustomasset") return end
                     local Layer1Asset, Layer2Asset, Layer3Asset, ChaseAsset = GetAssets()
 
                     if not Layer1Asset then return end
-                    Layer1, Layer2, Layer3, Chase = Instance.new("Sound"), Instance.new("Sound"), Instance.new("Sound"), Instance.new("Sound")
+                    Layer1, Layer2, Layer3, Chase = Instance.new('Sound'), Instance.new('Sound'), Instance.new('Sound'), Instance.new('Sound')
 
                     Layer1.SoundId, Layer2.SoundId, Layer3.SoundId, Chase.SoundId = Layer1Asset, Layer2Asset, Layer3Asset, ChaseAsset
 
@@ -699,6 +732,7 @@ Run(function() -- Other
 
                     local function PlaySound(Sound, FadeTime)
                         if Sound.Playing then return end
+
                         local Info = TweenInfo.new(FadeTime, Enum.EasingStyle.Linear)
                         if CurrentlyPlaying then
                             local Tween = Tween(CurrentlyPlaying, Info, {Volume = 0})
@@ -709,6 +743,7 @@ Run(function() -- Other
                                 end
                             end)
                         end
+
                         CurrentlyPlaying = Sound
                         Sound:Play()
                         Tween(Sound, Info, {Volume = Volume.Value})
@@ -724,41 +759,44 @@ Run(function() -- Other
                                     Copy:Stop()
                                 end
                             end)
+
                             CurrentlyPlaying = nil
                         end
                     end
 
                     local Chasing = false
 
-                    while TerrorRadius.Enabled do
-                        if not CharacterLib.Alive then task.wait(0.05) continue end
+                    while TerrorRadius.Enable do
+                        if not EntityLib.Alive then task.wait() continue end
+                        
                         local Beast = GetBeast()
                         
                         if Beast then
-                            local Char = CharacterLib:FindCharacter(Beast)
-                            if Char then
-                                Music = SafeRef(Char.Character, {"Hammer", "Handle", "SoundChaseMusic"})
+                            local Ent = EntityLib:FindEntity(Beast)
+                            if Ent then
+                                Music = SafeRef(Ent.Character, {'Hammer', 'Handle', 'SoundChaseMusic'})
                                 if Music then
                                     Music.Volume = 0
                                 end
 
-                                local Magnitude = (Char.Root.Position - CharacterLib.Root.Position).Magnitude
-                                local BeastLookDirection = Char.Head.CFrame.LookVector * LookVectorMod
-                                local Direction = (CharacterLib.Head.Position - Char.Head.Position) * LookVectorMod
-                                local Angle = math.deg(math.acos(BeastLookDirection:Dot(Direction.Unit))) * 2
-                                local StartChase = Char.Root.AssemblyLinearVelocity.Magnitude > 0 and CharacterLib.Root.AssemblyLinearVelocity.Magnitude > 0 and Angle <= 90 and not CharacterLib:WallCheck(CharacterLib.Head.Position, Char.Head.Position) or nil
+                                local Magnitude = vector.magnitude(Ent.Root.Position - EntityLib.Root.Position)
+                                local BeastLookDirection = Ent.Head.CFrame.LookVector * vector.hort
+                                local RequiredDirection = vector.normalize((EntityLib.Head.Position - Ent.Head.Position) * vector.hort)
+                                local Dot = vector.dot(BeastLookDirection, RequiredDirection)
+                                local Angle = math.deg(math.acos(Dot))
                                 
-                                if StartChase then
-                                    if StartChaseThread then task.wait(0.05) continue end
+                                if Ent.Humanoid.MoveDirection ~= vector.zero and EntityLib.Humanoid.MoveDirection ~= vector.zero and Angle <= 60 and not EntityLib:WallCheck(EntityLib.Head.Position, Ent.Head.Position) then
+                                    if StartChaseThread then task.wait() continue end
+
                                     StartChaseThread = task.delay(0.5, function()
-                                        Magnitude = (Char.Root.Position - CharacterLib.Root.Position).Magnitude
-                                        BeastLookDirection = Char.Head.CFrame.LookVector * LookVectorMod
-                                        Direction = (CharacterLib.Head.Position - Char.Head.Position) * LookVectorMod
-                                        Angle = math.deg(math.acos(BeastLookDirection:Dot(Direction.Unit))) * 2
-                                        StartChase = Magnitude <= ChaseDistance.Value and Char.Root.AssemblyLinearVelocity.Magnitude > 0 and CharacterLib.Root.AssemblyLinearVelocity.Magnitude > 0 and Angle <= 90 and not CharacterLib:WallCheck(CharacterLib.Head.Position, Char.Head.Position) or nil
+                                        Magnitude = vector.magnitude(Ent.Root.Position - EntityLib.Root.Position)
+                                        BeastLookDirection = Ent.Head.CFrame.LookVector * vector.hort
+                                        RequiredDirection = vector.normalize((EntityLib.Head.Position - Ent.Head.Position) * vector.hort)
+                                        Dot = vector.dot(BeastLookDirection, RequiredDirection)
+                                        Angle = math.deg(math.acos(Dot))
                                         StartChaseThread = nil
 
-                                        if StartChase then
+                                        if Ent.Humanoid.MoveDirection ~= vector.zero and EntityLib.Humanoid.MoveDirection ~= vector.zero and Angle <= 60 and not EntityLib:WallCheck(EntityLib.Head.Position, Ent.Head.Position) then
                                             Chasing = true
                                             CancelAllThreads()
                                             PlaySound(Chase, 0.5)
@@ -767,7 +805,8 @@ Run(function() -- Other
                                 elseif Chasing then
                                     if Magnitude <= ChaseDistance.Value then
                                         CancelWalkAwayThread()
-                                        if LookAwayThread then task.wait(0.05) continue end
+                                        if LookAwayThread then task.wait() continue end
+
                                         LookAwayThread = task.delay(10, function()
                                             LookAwayThread = nil
                                             Chasing = false
@@ -775,7 +814,8 @@ Run(function() -- Other
                                             PlaySound(Layer3, 0.5)
                                         end)
                                     else
-                                        if WalkAwayThread then task.wait(0.05) continue end
+                                        if WalkAwayThread then task.wait() continue end
+
                                         WalkAwayThread = task.delay(3, function()
                                             WalkAwayThread = nil
                                             Chasing = false
@@ -804,7 +844,8 @@ Run(function() -- Other
                             StopCurrentSound(0.5)
                             CancelAllThreads()
                         end
-                        task.wait(0.05)
+
+                        task.wait()
                     end
                 else
                     CancelAllThreads()

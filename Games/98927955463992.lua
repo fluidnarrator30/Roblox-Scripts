@@ -6,7 +6,7 @@ end
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 local ObjectFunctions = TidalWave.Libraries.ObjectFunctions
 
 local Combat = Categories.Combat
@@ -14,7 +14,7 @@ local Combat = Categories.Combat
 local Players = GetService("Players")
 local ReplicatedStorage = GetService("ReplicatedStorage")
 
-local Plr = Players.LocalPlayer
+local Plr: Player = Players.LocalPlayer
 
 local function Run(f)
     f()
@@ -22,7 +22,7 @@ end
 
 Run(function() -- Combat
     Run(function() -- ProjectileAura
-        local ProjectileAura, HitCooldown, AutoEquipGun, MaxDistance, Bullets, CachedGun
+        local ProjectileAura, HitCooldown, AutoEquipGun, MaxDistance, Bullets
 
         local ZombiesLocal = workspace.Zombies_Local
         local GunHit = ReplicatedStorage.Remotes.GunRemotes.GunHit
@@ -45,11 +45,11 @@ Run(function() -- Combat
                         continue
                     end
                 end
-                local Root = Zombie:FindFirstChild("HumanoidRootPart")
+                local Root = Zombie:FindFirstChild('HumanoidRootPart')
                 if not Root then continue end
                 local Head = ObjectFunctions:FindFirstChildOfClassWithName(Zombie, "Part", "Head")
                 if Head and Head.Transparency == 0 then
-                    local Distance = (Root.Position - CharacterLib.Root.Position).Magnitude
+                    local Distance = (Root.Position - EntityLib.Root.Position).Magnitude
                     if Distance <= MaxDistance.Value then
                         ClosestZombies[#ClosestZombies + 1] = {
                             Character = Zombie,
@@ -84,19 +84,17 @@ Run(function() -- Combat
                         HitZombies[Zombie] = nil
                     end))
 
-                    local Tool
-
                     while ProjectileAura.Enabled do
-                        if CharacterLib.Alive then
+                        if EntityLib.Alive then
                             if AutoEquipGun.Enabled then
                                 local Tool = Plr.Backpack:FindFirstChildOfClass('Tool')
                                 if Tool then
-                                    CharacterLib.Humanoid:EquipTool(Tool)
+                                    EntityLib.Humanoid:EquipTool(Tool)
                                     task.wait()
                                 end
                             end
                             
-                            local Tool = CharacterLib.Character:FindFirstChildOfClass('Tool')
+                            local Tool = EntityLib.Character:FindFirstChildOfClass('Tool')
 
                             if Tool then
                                 local ClosestZombies = GetClosestZombies()

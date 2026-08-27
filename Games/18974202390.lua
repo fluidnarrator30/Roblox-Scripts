@@ -6,20 +6,22 @@ end
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 local Drawing = TidalWave.Libraries.Drawing
 
-local Players: Players = GetService("Players")
-local TweenService: TweenService = GetService("TweenService")
-local RunService: RunService = GetService("RunService")
-local ReplicatedStorage: ReplicatedStorage = GetService("ReplicatedStorage")
-local UIS: UserInputService = GetService("UserInputService")
+local Players: Players = GetService('Players')
+local TweenService: TweenService = GetService('TweenService')
+local RunService: RunService = GetService('RunService')
+local ReplicatedStorage: ReplicatedStorage = GetService('ReplicatedStorage')
+local UIS: UserInputService = GetService('UserInputService')
 
-local Plr = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local Plr: Player = Players.LocalPlayer
+local Camera: Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass('Camera')
 
 local Combat = Categories.Combat
 local Other = Categories.Other
+
+local require = table.find({'Xeno', 'Solara'}, ({identifyexecutor()})[1]) == nil and require or nil
 
 local function Notify(Properties)
     TidalWave:Notify(Properties)
@@ -27,10 +29,10 @@ end
 
 local function NotifyPoopSploit(Function)
     Notify({
-        Title = "Poop Sploit",
-        Text = `{TidalWave.Executor or "Your Executor"} doesn't support "{Function}"`,
-        Type = "Error",
-        Duration = 4,
+        Title = 'Poop Sploit',
+        Text = `Your executor doesn't support '{Function}'`,
+        Type = 'Error',
+        Duration = 5,
     })
 end
 
@@ -38,17 +40,15 @@ local function Run(f)
     f()
 end
 
-local setupvalue = debug.setupvalue or setupvalue
-
 Run(function() -- Combat
     Run(function()
-        local SilentAimbot, WallCheck, WallBang, Part, Fov, Old, Circle, CircleObject, OutlineObject, OutlineColor, FillColor, OutlineTransparency, FillTransparency, Thickness
+        local SilentAimbot, WallCheck, Part, Fov, Circle, CircleObject, OutlineColor, FillColor, Thickness
 
         local function CreateCircle()
-            CircleObject = Drawing.new("Circle")
+            CircleObject = Drawing.new('Circle')
             CircleObject.Radius = Fov.Value
-            CircleObject.FillTransparency = FillTransparency.Value
-            CircleObject.OutlineTransparency = OutlineTransparency.Value
+            CircleObject.FillTransparency = FillColor.Transparency
+            CircleObject.OutlineTransparency = OutlineColor.Transparency
             CircleObject.FillColor = FillColor.Color
             CircleObject.OutlineColor = OutlineColor.Color
             CircleObject.Thickness = Thickness.Value
@@ -67,8 +67,8 @@ Run(function() -- Combat
         local function UpdateCircle()
             if CircleObject then
                 CircleObject.Radius = Fov.Value
-                CircleObject.FillTransparency = FillTransparency.Value
-                CircleObject.OutlineTransparency = OutlineTransparency.Value
+                CircleObject.FillTransparency = FillColor.Transparency
+                CircleObject.OutlineTransparency = OutlineColor.Transparency
                 CircleObject.FillColor = FillColor.Color
                 CircleObject.OutlineColor = OutlineColor.Color
                 CircleObject.Thickness = Thickness.Value
@@ -76,20 +76,22 @@ Run(function() -- Combat
         end
 
         SilentAimbot = Combat:CreateModule({
-            Name = "SilentAimbot",
-            Info = "Silently adjusts your aim towards the nearest target",
+            Name = 'SilentAimbot',
+            Info = 'Silently adjusts your aim towards the nearest target',
             Enabled = function()
-                if not setupvalue then NotifyPoopSploit("getupvalue") return end
+                if not require then NotifyPoopSploit('require') return end
+                if not debug.setupvalue then NotifyPoopSploit("setupvalue") return end
+
                 local BlasterController = require(ReplicatedStorage.Blaster.Scripts.BlasterController)
 
-                local Proxy = newproxy(true)
-                getmetatable(Proxy).__index = function()
-                    local Character, Vector = CharacterLib:GetCharacterWithinMouse({
+                local FakeCamera = newproxy(true)
+                getmetatable(FakeCamera).__index = function()
+                    local Character = EntityLib:GetClosestEntityWithinMouse({
                         Part = Part.Value,
                         Range = Fov.Value,
                         Origin = Camera.CFrame.Position,
                         WallCheck = WallCheck.Enabled,
-                        NPCS = false,
+                        NPCs = false,
                         Players = true
                     })
 
@@ -99,7 +101,8 @@ Run(function() -- Combat
 
                     return Camera.CFrame
                 end
-                setupvalue(BlasterController.shoot, 3, Proxy)
+
+                debug.setupvalue(BlasterController.shoot, 3, FakeCamera)
 
                 if Circle.Enabled and not CircleObject then
                     CreateCircle()
@@ -113,26 +116,23 @@ Run(function() -- Combat
 
                 SilentAimbot:Clean(function()
                     RemoveCircle()
-                    setupvalue(BlasterController.shoot, 3, Camera)
+                    debug.setupvalue(BlasterController.shoot, 3, Camera)
                 end)
             end
         })
 
         WallCheck = SilentAimbot:CreateToggle({
-            Name = "WallCheck",
-            Info = "Ignores players behind walls",
-            Function = function(Enabled)
-                WallBang:SetVisible(not Enabled)
-            end
+            Name = 'WallCheck',
+            Info = 'Ignores players behind walls'
         })
 
         Part = SilentAimbot:CreateDropdown({
-            Name = "Part",
-            List = {"Head", "Root"}
+            Name = 'Part',
+            List = {'Head', 'Root'}
         })
 
         Fov = SilentAimbot:CreateSlider({
-            Name = "Fov",
+            Name = 'Fov',
             Default = 100,
             Min = 0,
             Max = 1000,
@@ -140,59 +140,32 @@ Run(function() -- Combat
         })
 
         Circle = SilentAimbot:CreateToggle({
-            Name = "Circle",
+            Name = 'Circle',
             Function = function(Enabled)
                 if Enabled and SilentAimbot.Enabled then
                     CreateCircle()
                 else
                     RemoveCircle()
                 end
-                for i, v in {Fov, Thickness, OutlineTransparency, FillTransparency, OutlineColor, FillColor} do
-                    v:SetVisible(Enabled)
-                end
             end
         })
 
-        Thickness = SilentAimbot:CreateSlider({
-            Name = "Thickness",
+        Thickness = Circle:CreateSlider({
+            Name = 'Thickness',
             Default = 1,
             Min = 1,
             Max = 10,
-            Visible = false,
             Function = UpdateCircle
         })
 
-        OutlineTransparency = SilentAimbot:CreateSlider({
-            Name = "Outline Transparency",
-            Default = 0,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
+        OutlineColor = Circle:CreateColorPicker({
+            Name = 'Outline Color',
             Function = UpdateCircle
         })
 
-        FillTransparency = SilentAimbot:CreateSlider({
-            Name = "Fill Transparency",
-            Default = 1,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        OutlineColor = SilentAimbot:CreateColorPicker({
-            Name = "Outline Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        FillColor = SilentAimbot:CreateColorPicker({
-            Name = "Fill Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
+        FillColor = Circle:CreateColorPicker({
+            Name = 'Fill Color',
+            Transparency = 1,
             Function = UpdateCircle
         })
     end)
@@ -200,14 +173,17 @@ end)
 
 Run(function() -- Other
     Run(function()
-        local NoRecoil, Old
+        local NoRecoil
         
         NoRecoil = Other:CreateModule({
-            Name = "NoRecoil",
-            Info = "Removes recoil when shooting your gun",
-            Enabled = function()
+            Name = 'NoRecoil',
+            Info = 'Removes recoil when shooting your gun',
+            Function = function(Enabled)
+                if not require then NotifyPoopSploit('require') return end
+
                 local BlasterController = require(ReplicatedStorage.Blaster.Scripts.BlasterController)
-                Old = BlasterController.recoil
+                local Old = BlasterController.recoil
+                
                 BlasterController.recoil = function()
                     return nil
                 end

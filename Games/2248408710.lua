@@ -6,20 +6,21 @@ end
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 
-local Players: Players = GetService("Players")
-local TweenService: TweenService = GetService("TweenService")
-local RunService: RunService = GetService("RunService")
-local ReplicatedStorage: ReplicatedStorage = GetService("ReplicatedStorage")
-local UIS: UserInputService = GetService("UserInputService")
+local Players: Players = GetService('Players')
+local ReplicatedStorage: ReplicatedStorage = GetService('ReplicatedStorage')
+local UIS: UserInputService = GetService('UserInputService')
 
-local Plr = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-local Mouse = cloneref(Plr:GetMouse())
+local Plr: Player = Players.LocalPlayer
+local Camera: Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass('Camera')
 
 local Combat = Categories.Combat
 local World = Categories.World
+
+TidalWave:Clean(workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(function()
+    Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass('Camera')
+end))
 
 local function Notify(Properties)
     TidalWave:Notify(Properties)
@@ -27,10 +28,10 @@ end
 
 local function NotifyPoopSploit(Function)
     Notify({
-        Title = "Poop Sploit",
-        Text = `{TidalWave.Executor or "Your Executor"} doesn't support "{Function}"`,
-        Type = "Error",
-        Duration = 4,
+        Title = 'Poop Sploit',
+        Text = `Your executor doesn't support {Function}`,
+        Type = 'Error',
+        Duration = 5,
     })
 end
 
@@ -44,15 +45,22 @@ Run(function()
 
         local ExplodeRocket = ReplicatedStorage.Remotes.explodeRocket
 
+        local Params = RaycastParams.new()
+        Params.RespectCanCollide = true
+
         Boom = World:CreateModule({
             Name = "Boom",
             Info = "It go boom.",
             Enabled = function()
                 while Boom.Enabled do
-                    if CharacterLib.Alive and Mouse.Hit then
-                        local Launcher = CharacterLib.Character:FindFirstChildOfClass("Tool")
-                        if Launcher then
-                            ExplodeRocket:FireServer(tick(), Launcher.Stats, Mouse.Hit.Position, Launcher.Assets.Rocket.Boom)
+                    local Launcher = EntityLib.Alive and EntityLib.Character:FindFirstChildOfClass("Tool")
+                    if Launcher then
+                        Params.FilterDescendantsInstances = {EntityLib.Character}
+                        local MouseLocation = UIS:GetMouseLocation()
+                        local MouseRaycast = Camera:ViewportPointToRay(MouseLocation.X, MouseLocation.Y)
+                        local Raycast = workspace:Raycast(MouseRaycast.Origin, MouseRaycast.Direction * 1000, Params)
+                        if Raycast then
+                            ExplodeRocket:FireServer(tick(), Launcher.Stats, Raycast.Position, Launcher.Assets.Rocket.Boom)
                             task.wait(Interval.Value)
                         else
                             task.wait()

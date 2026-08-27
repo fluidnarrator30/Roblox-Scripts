@@ -7,9 +7,9 @@ end
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
 
-local MarketplaceService: MarketplaceService = GetService("MarketplaceService")
-local Players: Players = GetService("Players")
-local ReplicatedStorage: ReplicatedStorage = GetService("ReplicatedStorage")
+local MarketplaceService: MarketplaceService = GetService('MarketplaceService')
+local Players: Players = GetService('Players')
+local ReplicatedStorage: ReplicatedStorage = GetService('ReplicatedStorage')
 
 local Plr = Players.LocalPlayer
 
@@ -26,8 +26,8 @@ Run(function()
         local Event = ReplicatedStorage.ServerEvents.Nuke
 
         Nuke = World:CreateButton({
-            Name = "Nuke",
-            Info = "Nukes the server :D",
+            Name = 'Nuke',
+            Info = 'Nukes the server :D',
             Function = function()
                 for i = 1, Amount.Value do
                     MarketplaceService:SignalPromptProductPurchaseFinished(Plr.UserId, 1586234773, true)
@@ -37,7 +37,7 @@ Run(function()
         })
 
         Amount = Nuke:CreateSlider({
-            Name = "Amount",
+            Name = 'Amount',
             Default = 1,
             Min = 1,
             Max = 100

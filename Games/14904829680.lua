@@ -5,16 +5,18 @@ local function GetService(Service)
 end
 
 local ContextActionService: ContextActionService = GetService("ContextActionService")
+local HttpService: HttpService = GetService("HttpService")
 local Players: Players = GetService("Players")
 local ReplicatedStorage: ReplicatedStorage = GetService("ReplicatedStorage")
 local RunService: RunService = GetService("RunService")
 local UIS: UserInputService = GetService("UserInputService")
 
 local Plr = Players.LocalPlayer
+local Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass('Camera')
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 local Modules = TidalWave.Modules
 local ObjectFunctions = TidalWave.Libraries.ObjectFunctions
 
@@ -29,114 +31,22 @@ local PlayerCategory = Categories.Player
 local Other = Categories.Other
 local Animations = Categories.Animations
 
-local setconstant = debug.setconstant or setconstant
+local vector = table.clone(vector)
+vector.xAxis = vector.create(1, 0, 0)
+vector.yAxis = vector.create(0, 1, 0)
+vector.zAxis = vector.create(0, 0, 1)
+vector.hort = vector.create(1, 0, 1)
+vector.huge = vector.create(math.huge, math.huge, math.huge)
+vector.hugeX = vector.create(math.huge, 0, 0)
+vector.hugeY = vector.create(0, math.huge, 0)
+vector.hugeZ = vector.create(0, 0, math.huge)
+vector.hugeXZ = vector.create(math.huge, 0, math.huge)
+vector.unit = vector.normalize
+function vector.round(Vec)
+    return vector.create(math.round(Vec.X), math.round(Vec.Y), math.round(Vec.Z))
+end
 
-local PoopSploit = table.find({"Xeno", "Solara"}, TidalWave.Executor)
-
-local Keys = {
-    ["MouseButton1"] = Enum.UserInputType.MouseButton1,
-	["Unknown"] = Enum.KeyCode.Unknown,
-	["A"] = Enum.KeyCode.A,
-	["B"] = Enum.KeyCode.B,
-	["C"] = Enum.KeyCode.C,
-	["D"] = Enum.KeyCode.D,
-	["E"] = Enum.KeyCode.E,
-	["F"] = Enum.KeyCode.F,
-	["G"] = Enum.KeyCode.G,
-	["H"] = Enum.KeyCode.H,
-	["I"] = Enum.KeyCode.I,
-	["J"] = Enum.KeyCode.J,
-	["K"] = Enum.KeyCode.K,
-	["L"] = Enum.KeyCode.L,
-	["M"] = Enum.KeyCode.M,
-	["N"] = Enum.KeyCode.N,
-	["O"] = Enum.KeyCode.O,
-	["P"] = Enum.KeyCode.P,
-	["Q"] = Enum.KeyCode.Q,
-	["R"] = Enum.KeyCode.R,
-	["S"] = Enum.KeyCode.S,
-	["T"] = Enum.KeyCode.T,
-	["U"] = Enum.KeyCode.U,
-	["V"] = Enum.KeyCode.V,
-	["W"] = Enum.KeyCode.W,
-	["X"] = Enum.KeyCode.X,
-	["Y"] = Enum.KeyCode.Y,
-	["Z"] = Enum.KeyCode.Z,
-	["F1"] = Enum.KeyCode.F1,
-	["F2"] = Enum.KeyCode.F2,
-	["F3"] = Enum.KeyCode.F3,
-	["F4"] = Enum.KeyCode.F4,
-	["F5"] = Enum.KeyCode.F5,
-	["F6"] = Enum.KeyCode.F6,
-	["F7"] = Enum.KeyCode.F7,
-	["F8"] = Enum.KeyCode.F8,
-	["F9"] = Enum.KeyCode.F9,
-	["F10"] = Enum.KeyCode.F10,
-	["F11"] = Enum.KeyCode.F11,
-	["F12"] = Enum.KeyCode.F12,
-	["Backspace"] = Enum.KeyCode.Backspace,
-	["Tab"] = Enum.KeyCode.Tab,
-    ["Enter"] = Enum.KeyCode.Return,
-	["Escape"] = Enum.KeyCode.Escape,
-	["Space"] = Enum.KeyCode.Space,
-	["Quote"] = Enum.KeyCode.Quote,
-	["Comma"] = Enum.KeyCode.Comma,
-	["Minus"] = Enum.KeyCode.Minus,
-	["Period"] = Enum.KeyCode.Period,
-	["Slash"] = Enum.KeyCode.Slash,
-	["Zero"] = Enum.KeyCode.Zero,
-	["One"] = Enum.KeyCode.One,
-	["Two"] = Enum.KeyCode.Two,
-	["Three"] = Enum.KeyCode.Three,
-	["Four"] = Enum.KeyCode.Four,
-	["Five"] = Enum.KeyCode.Five,
-	["Six"] = Enum.KeyCode.Six,
-	["Seven"] = Enum.KeyCode.Seven,
-	["Eight"] = Enum.KeyCode.Eight,
-	["Nine"] = Enum.KeyCode.Nine,
-	["Semicolon"] = Enum.KeyCode.Semicolon,
-	["Equals"] = Enum.KeyCode.Equals,
-	["LeftBracket"] = Enum.KeyCode.LeftBracket,
-	["BackSlash"] = Enum.KeyCode.BackSlash,
-	["RightBracket"] = Enum.KeyCode.RightBracket,
-	["Backquote"] = Enum.KeyCode.Backquote,
-	["Delete"] = Enum.KeyCode.Delete,
-	["KeypadZero"] = Enum.KeyCode.KeypadZero,
-	["KeypadOne"] = Enum.KeyCode.KeypadOne,
-	["KeypadTwo"] = Enum.KeyCode.KeypadTwo,
-	["KeypadThree"] = Enum.KeyCode.KeypadThree,
-	["KeypadFour"] = Enum.KeyCode.KeypadFour,
-	["KeypadFive"] = Enum.KeyCode.KeypadFive,
-	["KeypadSix"] = Enum.KeyCode.KeypadSix,
-	["KeypadSeven"] = Enum.KeyCode.KeypadSeven,
-	["KeypadEight"] = Enum.KeyCode.KeypadEight,
-	["KeypadNine"] = Enum.KeyCode.KeypadNine,
-	["KeypadPeriod"] = Enum.KeyCode.KeypadPeriod,
-	["KeypadDivide"] = Enum.KeyCode.KeypadDivide,
-	["KeypadMultiply"] = Enum.KeyCode.KeypadMultiply,
-	["KeypadMinus"] = Enum.KeyCode.KeypadMinus,
-	["KeypadPlus"] = Enum.KeyCode.KeypadPlus,
-	["KeypadEnter"] = Enum.KeyCode.KeypadEnter,
-	["KeypadEquals"] = Enum.KeyCode.KeypadEquals,
-	["Up"] = Enum.KeyCode.Up,
-	["Down"] = Enum.KeyCode.Down,
-	["Right"] = Enum.KeyCode.Right,
-	["Left"] = Enum.KeyCode.Left,
-	["Insert"] = Enum.KeyCode.Insert,
-	["Home"] = Enum.KeyCode.Home,
-	["End"] = Enum.KeyCode.End,
-	["PageUp"] = Enum.KeyCode.PageUp,
-	["PageDown"] = Enum.KeyCode.PageDown,
-	["NumLock"] = Enum.KeyCode.NumLock,
-	["CapsLock"] = Enum.KeyCode.CapsLock,
-	["ScrollLock"] = Enum.KeyCode.ScrollLock,
-	["RightShift"] = Enum.KeyCode.RightShift,
-	["LeftShift"] = Enum.KeyCode.LeftShift,
-	["RightControl"] = Enum.KeyCode.RightControl,
-	["LeftControl"] = Enum.KeyCode.LeftControl,
-	["RightAlt"] = Enum.KeyCode.RightAlt,
-	["LeftAlt"] = Enum.KeyCode.LeftAlt,
-}
+local PoopSploit = table.find({"Xeno", "Solara"}, ({identifyexecutor()})[1])
 
 local function Notify(Properties)
     TidalWave:Notify(Properties)
@@ -144,10 +54,10 @@ end
 
 local function NotifyPoopSploit(Function)
     Notify({
-        Title = "Poop Sploit",
-        Text = `{TidalWave.Executor or "Your Executor"} doesn't support "{Function}"`,
-        Type = "Error",
-        Duration = 4,
+        Title = 'Poop Sploit',
+        Text = `Your executor doesn't support '{Function}'`,
+        Type = 'Error',
+        Duration = 5,
     })
 end
 
@@ -184,12 +94,16 @@ local function Run(f)
     f()
 end
 
+local function GetFullPlayerName(Player)
+    return Player.DisplayName == Player.Name and Player.Name or `{Player.DisplayName} (@{Player.Name})`
+end
+
 Run(function() -- Combat
-    Run(function() -- KillSurvivors
+    Run(function() -- Kill All
         Combat:CreateButton({
-            Name = "Sacrifice All Survivors",
+            Name = "Kill All",
             Function = function()
-                for i, Player in CharacterLib.List do
+                for i, Player in EntityLib.List do
                     task.spawn(function()
                         local Hook = workspace:FindFirstChild(`Hook{i}`)
                         if not Hook then return end
@@ -206,225 +120,306 @@ end)
 
 Run(function() -- Movement
     Run(function() -- ChainsawModifier
-        local HillbillyStats, SprintLimitX, SprintLimitY, SprintSensitivityX, SprintSensitivityY, FlickLimitX, FlickLimitY, FlickSensitivityX, FlickSensitivityY, FlickDuration, ChainsawMovementSpeed, ChargeMovementSpeed, StaggerMovementSpeed, HitRadius, HitRange, CrashRadius, CrashRange, CrashDuration, MissDuration, HitDuration
+        local ChainsawModifier, SprintLimitX, SprintLimitY, SprintSensitivityX, SprintSensitivityY, FlickLimitX, FlickLimitY, FlickSensitivityX, FlickSensitivityY, FlickDuration, ChainsawMovementSpeed, ChargeMovementSpeed, StaggerMovementSpeed, HitRadius, HitRange, CrashRadius, CrashRange, CrashDuration, MissDuration, HitDuration
 
         local StatsModule
 
-        local PrevStats = {}
+        local PrevStats
 
-        local function GrabStatsModule()
-            if not PoopSploit and not StatsModule then
-                local GameData = ReplicatedStorage:FindFirstChild("Game_Data")
-                local Killers = GameData and GameData:FindFirstChild("Killers")
-                local Hillbilly = Killers and Killers:FindFirstChild("Hillbilly")
-                if Hillbilly then
-                    StatsModule = require(Hillbilly)
-                end
-                for i, v in pairs(StatsModule) do
-                    if typeof(v) == "table" then
-                        PrevStats[i] = table.clone(v)
-                    else
-                        PrevStats[i] = v
-                    end
-                end
-            end
-            return StatsModule
-        end
-
-        local function UpdateStats()
-            if GrabStatsModule() then
-                if HillbillyStats.Enabled then
-                    StatsModule.Camera.Sprint.Limits = Vector2.new(SprintLimitX.Value, SprintLimitY.Value)
-                    StatsModule.Camera.Sprint.Sensitivity = Vector2.new(SprintSensitivityX.Value, SprintSensitivityY.Value)
-                    StatsModule.Camera.Flick.Limits = Vector2.new(FlickLimitX.Value, FlickLimitY.Value)
-                    StatsModule.Camera.Flick.Sensitivity = Vector2.new(FlickSensitivityX.Value, FlickSensitivityY.Value)
-                    StatsModule.Chainsaw_Settings.Flick = FlickDuration.Value
-                    StatsModule.Speeds.Sprinting = ChainsawMovementSpeed.Value
-                    StatsModule.Speeds.Charging = ChargeMovementSpeed.Value
-                    StatsModule.Speeds.Stagger = StaggerMovementSpeed.Value
-                    StatsModule.Hitbox.Hit.Radius = HitRadius.Value
-                    StatsModule.Hitbox.Hit.Range = HitRange.Value
-                    StatsModule.Hitbox.Crash.Radius = CrashRadius.Value
-                    StatsModule.Hitbox.Crash.Range = CrashRange.Value
-                    StatsModule.Animation_Timing.Crash = CrashDuration.Value
-                    StatsModule.Animation_Timing.None = MissDuration.Value
-                    StatsModule.Animation_Timing.Hit = HitDuration.Value
-                else
-                    for i, v in pairs(PrevStats) do
-                        StatsModule[i] = v
-                    end
-                end
-            end
-        end
-
-        HillbillyStats = Movement:CreateModule({
+        ChainsawModifier = Movement:CreateModule({
             Name = "ChainsawModifier",
             Info = "Allows you to change different hillbilly stats like camera turn rate",
-            Function = UpdateStats
+            Function = function()
+                if not StatsModule then
+                    local Module = SafeRef(ReplicatedStorage, {'Game_Data', 'Killers', 'Hillbilly'})
+                    while ChainsawModifier.Enabled and not Module do
+                        Module = SafeRef(ReplicatedStorage, {'Game_Data', 'Killers', 'Hillbilly'})
+                        task.wait()
+                    end
+                    if Module then
+                        StatsModule = require(Module)
+                    end
+                end
+                
+                if StatsModule then
+                    if ChainsawModifier.Enabled then
+                        PrevStats = {}
+                        PrevStats.Camera = table.clone(StatsModule.Camera)
+                        PrevStats.Chainsaw_Settings = table.clone(StatsModule.Chainsaw_Settings)
+                        PrevStats.Speeds = table.clone(StatsModule.Speeds)
+                        PrevStats.Hitbox = table.clone(StatsModule.Hitbox)
+                        PrevStats.Animation_Timing = table.clone(StatsModule.Aniamtion_Timing)
+                        StatsModule.Camera.Sprint.Limits = Vector2.new(SprintLimitX.Value, SprintLimitY.Value)
+                        StatsModule.Camera.Sprint.Sensitivity = Vector2.new(SprintSensitivityX.Value, SprintSensitivityY.Value)
+                        StatsModule.Camera.Flick.Limits = Vector2.new(FlickLimitX.Value, FlickLimitY.Value)
+                        StatsModule.Camera.Flick.Sensitivity = Vector2.new(FlickSensitivityX.Value, FlickSensitivityY.Value)
+                        StatsModule.Chainsaw_Settings.Flick = FlickDuration.Value
+                        StatsModule.Speeds.Sprinting = ChainsawMovementSpeed.Value
+                        StatsModule.Speeds.Charging = ChargeMovementSpeed.Value
+                        StatsModule.Speeds.Stagger = StaggerMovementSpeed.Value
+                        StatsModule.Hitbox.Hit.Radius = HitRadius.Value
+                        StatsModule.Hitbox.Hit.Range = HitRange.Value
+                        StatsModule.Hitbox.Crash.Radius = CrashRadius.Value
+                        StatsModule.Hitbox.Crash.Range = CrashRange.Value
+                        StatsModule.Animation_Timing.Crash = CrashDuration.Value
+                        StatsModule.Animation_Timing.None = MissDuration.Value
+                        StatsModule.Animation_Timing.Hit = HitDuration.Value
+                    elseif PrevStats then
+                        for i, v in PrevStats do
+                            for i2, v2 in v do
+                                if typeof(v2) == 'table' then
+                                    for i3, v3 in v2 do
+                                        StatsModule[i][i2][i3] = v3
+                                    end
+                                else
+                                    StatsModule[i][i2] = v
+                                end
+                            end
+                        end
+                        PrevStats = nil
+                    end
+                end
+            end
         })
 
-        SprintLimitX = HillbillyStats:CreateSlider({
+        SprintLimitX = ChainsawModifier:CreateSlider({
             Name = "Sprint Limit X",
             Default = 65,
             Min = 0,
             Max = 650,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Camera.Sprint.Limits = Vector2.new(SprintLimitX.Value, SprintLimitY.Value)
+                end
+            end
         })
 
-        SprintLimitY = HillbillyStats:CreateSlider({
+        SprintLimitY = ChainsawModifier:CreateSlider({
             Name = "Sprint Limit Y",
             Default = 35,
             Min = 0,
             Max = 350,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Camera.Sprint.Limits = Vector2.new(SprintLimitX.Value, SprintLimitY.Value)
+                end
+            end
         })
 
-        SprintSensitivityX = HillbillyStats:CreateSlider({
+        SprintSensitivityX = ChainsawModifier:CreateSlider({
             Name = "Sprint Sensitivity X",
             Default = 0.5,
             Min = 0,
             Max = 5,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Camera.Sprint.Sensitivity = Vector2.new(SprintSensitivityX.Value, SprintSensitivityY.Value)
+                end
+            end
         })
 
-        SprintSensitivityY = HillbillyStats:CreateSlider({
+        SprintSensitivityY = ChainsawModifier:CreateSlider({
             Name = "Sprint Sensitivity Y",
             Default = 0.125,
             Min = 0,
             Max = 1.25,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Camera.Sprint.Sensitivity = Vector2.new(SprintSensitivityX.Value, SprintSensitivityY.Value)
+                end
+            end
         })
 
-        FlickLimitX = HillbillyStats:CreateSlider({
+        FlickLimitX = ChainsawModifier:CreateSlider({
             Name = "Flick Limit X",
             Default = 65,
             Min = 0,
             Max = 650,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Camera.Flick.Limits = Vector2.new(FlickLimitX.Value, FlickLimitY.Value)
+                end
+            end
         })
 
-        FlickLimitY = HillbillyStats:CreateSlider({
+        FlickLimitY = ChainsawModifier:CreateSlider({
             Name = "Flick Limit Y",
             Default = 35,
             Min = 0,
             Max = 350,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Camera.Flick.Limits = Vector2.new(FlickLimitX.Value, FlickLimitY.Value)
+                end
+            end
         })
 
-        FlickSensitivityX = HillbillyStats:CreateSlider({
+        FlickSensitivityX = ChainsawModifier:CreateSlider({
             Name = "Flick Sensitivity X",
             Default = 0.5,
             Min = 0,
             Max = 2,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Camera.Flick.Sensitivity = Vector2.new(FlickSensitivityX.Value, FlickSensitivityY.Value)
+                end
+            end
         })
 
-        FlickSensitivityY = HillbillyStats:CreateSlider({
+        FlickSensitivityY = ChainsawModifier:CreateSlider({
             Name = "Flick Sensitivity Y",
             Default = 0.125,
             Min = 0,
             Max = 1,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Camera.Flick.Sensitivity = Vector2.new(FlickSensitivityX.Value, FlickSensitivityY.Value)
+                end
+            end
         })
 
-        FlickDuration = HillbillyStats:CreateSlider({
+        FlickDuration = ChainsawModifier:CreateSlider({
             Name = "Flick Duration",
             Default = 0.65,
             Min = 0,
             Max = 3,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Chainsaw_Settings.Flick = FlickDuration.Value
+                end
+            end
         })
 
-        ChainsawMovementSpeed = HillbillyStats:CreateSlider({
+        ChainsawMovementSpeed = ChainsawModifier:CreateSlider({
             Name = "Chainsaw Movement Speed",
             Default = 35,
             Min = 0,
             Max = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Speeds.Sprinting = ChainsawMovementSpeed.Value
+                end
+            end
         })
 
-        ChargeMovementSpeed = HillbillyStats:CreateSlider({
+        ChargeMovementSpeed = ChainsawModifier:CreateSlider({
             Name = "Charge Movement Speed",
             Default = 12,
             Min = 0,
             Max = 60,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Speeds.Charging = ChargeMovementSpeed.Value
+                end
+            end
         })
 
-        StaggerMovementSpeed = HillbillyStats:CreateSlider({
+        StaggerMovementSpeed = ChainsawModifier:CreateSlider({
             Name = "Stagger Movement Speed",
             Default = 0,
             Min = 0,
             Max = 10,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Speeds.Stagger = StaggerMovementSpeed.Value
+                end
+            end
         })
 
-        HitRadius = HillbillyStats:CreateSlider({
+        HitRadius = ChainsawModifier:CreateSlider({
             Name = "Hit Radius",
             Default = 0.75,
             Min = 0,
             Max = 3,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Hitbox.Hit.Radius = HitRadius.Value
+                end
+            end
         })
 
-        HitRange = HillbillyStats:CreateSlider({
+        HitRange = ChainsawModifier:CreateSlider({
             Name = "Hit Range",
             Default = 1,
             Min = 0,
             Max = 3,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Hitbox.Hit.Range = HitRange.Value
+                end
+            end
         })
 
-        CrashRadius = HillbillyStats:CreateSlider({
+        CrashRadius = ChainsawModifier:CreateSlider({
             Name = "Crash Radius",
             Default = 0.75,
             Min = 0,
             Max = 3,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Hitbox.Crash.Radius = CrashRadius.Value
+                end
+            end
         })
 
-        CrashRange = HillbillyStats:CreateSlider({
+        CrashRange = ChainsawModifier:CreateSlider({
             Name = "Crash Range",
             Default = 1,
             Min = 0,
             Max = 3,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Hitbox.Crash.Range = CrashRange.Value
+                end
+            end
         })
 
-        CrashDuration = HillbillyStats:CreateSlider({
+        CrashDuration = ChainsawModifier:CreateSlider({
             Name = "Crash Duration",
             Default = 4,
             Min = 0,
             Max = 8,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Animation_Timing.Crash = CrashDuration.Value
+                end
+            end
         })
 
-        HitDuration = HillbillyStats:CreateSlider({
+        HitDuration = ChainsawModifier:CreateSlider({
             Name = "Hit Duration",
             Default = 2,
             Min = 0,
             Max = 3,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Animation_Timing.None = MissDuration.Value
+                end
+            end
         })
 
-        MissDuration = HillbillyStats:CreateSlider({
+        MissDuration = ChainsawModifier:CreateSlider({
             Name = "Miss Duration",
             Default = 1.5,
             Min = 0,
             Max = 3,
             Decimal = 100,
-            Function = UpdateStats
+            Function = function()
+                if ChainsawModifier.Enabled and StatsModule then
+                    StatsModule.Animation_Timing.Hit = HitDuration.Value
+                end
+            end
         })
     end)
 
@@ -448,22 +443,23 @@ Run(function() -- Movement
                 until Scripts and VaultWindow and WindowModule and Action or not FastVaultModifier.Enabled
 
                 Old = WindowModule.Start
-                if NoDelay.Enabled then
-                    setconstant(Old, 5, 0)
-                end
 
                 WindowModule.Start = function(self, ...)
-                    if AllowAnyAngle.Enabled and CharacterLib.Alive then
+                    if NoDelay.Enabled then
+                        WindowModule.Debounces.InputEnter = 0
+                        WindowModule.Debounces.InProgress = false
+                    end
+                    if AllowAnyAngle.Enabled and EntityLib.Alive then
                         local Far = WindowModule.ActionInfo.Ports.Far
                         local Close = WindowModule.ActionInfo.Ports.Close
                         if Far and Close then
-                            local Start = vector.create(Close.Position.X, CharacterLib.Root.Position.Y, Close.Position.Z)
-                            local Target = vector.create(Far.Position.X, CharacterLib.Root.Position.Y, Far.Position.Z)
-                            CharacterLib.Root.CFrame = CFrame.lookAt(Start, Target)
+                            local Start = vector.create(Close.Position.X, EntityLib.Root.Position.Y, Close.Position.Z)
+                            local Target = vector.create(Far.Position.X, EntityLib.Root.Position.Y, Far.Position.Z)
+                            EntityLib.Root.CFrame = CFrame.lookAt(Start, Target)
                         end
 
                         if SpoofMoveDirection.Enabled then
-                            CharacterLib.Humanoid:Move(vector.create(1, 0, 0))
+                            EntityLib.Humanoid:Move(vector.xAxis)
                         end
                     end
 
@@ -477,9 +473,6 @@ Run(function() -- Movement
                 end))
 
                 FastVaultModifier:Clean(function()
-                    if Old then
-                        setconstant(Old, 5, 1.5)
-                    end
                     WindowModule.Start = Old
                     Old = nil
                     WindowModule = nil
@@ -489,25 +482,20 @@ Run(function() -- Movement
 
         AllowAnyAngle = FastVaultModifier:CreateToggle({
             Name = "Allow Any Angle",
-            Info = "Allows you to get a fast fault from any angle.",
+            Info = "Allows you to get a fast fault from any angle",
             Default = true
         })
 
         SpoofMoveDirection = FastVaultModifier:CreateToggle({
             Name = "Spoof Move Direction",
-            Info = "Allows you to get a fast vault while standing still.",
+            Info = "Allows you to get a fast vault while standing still",
             Default = true
         })
 
         NoDelay = FastVaultModifier:CreateToggle({
             Name = "No Delay",
-            Info = "Removes the 1.5 second cooldown between vaulting windows.",
-            Default = true,
-            Function = function(Enabled)
-                if Old then
-                    setconstant(Old, 5, Enabled and 0 or 1.5)
-                end
-            end
+            Info = "Removes the 1 second cooldown between vaulting windows",
+            Default = true
         })
     end)
 
@@ -520,22 +508,27 @@ Run(function() -- Movement
             Enabled = function()
                 local Scripts = SafeRef(Plr, {"Backpack", "Scripts"})
                 if PoopSploit then
-                    Notify({Text = "Your executor doesn't support 'require'\nThis module may or may not work."})
+                    Notify({
+                        Text = 'Your executor doesn\'t support \'require\'\nThis module may or may not work',
+                        Duration = 10,
+                        Type = 'Warning'
+                    })
+                    
                     local Values = Scripts and Scripts:FindFirstChild("values")
                     local Action = Values and Values:FindFirstChild("Action")
                     local Con
                     if Action then
-                        NoPalletSlow:Clean(Action:GetPropertyChangedSignal("Value"):Connect(function()
+                        NoPalletSlow:Clean(Action:GetPropertyChangedSignal('Value'):Connect(function()
                             if Con then
                                 Con:Disconnect()
                                 Con = nil
                             end
-                            if Action.Value == "DroppingPallet" and CharacterLib.Alive and CharacterLib.Root then
-                                if CharacterLib.Root.Anchored then
-                                    CharacterLib.Root.Anchored = false
+                            if Action.Value == "DroppingPallet" and EntityLib.Alive and EntityLib.Root then
+                                if EntityLib.Root.Anchored then
+                                    EntityLib.Root.Anchored = false
                                 else
-                                    Con = CharacterLib.Root:GetPropertyChangedSignal("Anchored"):Once(function()
-                                        CharacterLib.Root.Anchored = false
+                                    Con = EntityLib.Root:GetPropertyChangedSignal('Anchored'):Once(function()
+                                        EntityLib.Root.Anchored = false
                                         Con = nil
                                     end)
                                 end
@@ -543,7 +536,7 @@ Run(function() -- Movement
                         end))
                     end
                 else
-                    local DropPallet = SafeRef(Scripts, {"GlobalSurvivor", "Action", "DropPallet"})
+                    local DropPallet = SafeRef(Scripts, {'GlobalSurvivor', 'Action', 'DropPallet'})
                     local Module = DropPallet and require(DropPallet)
                     local Con
                     if Module then
@@ -553,8 +546,8 @@ Run(function() -- Movement
                                 Con:Disconnect()
                                 Con = nil
                             end
-                            Con = CharacterLib.Alive and CharacterLib.Root:GetPropertyChangedSignal("Anchored"):Once(function()
-                                CharacterLib.Root.Anchored = false
+                            Con = EntityLib.Alive and EntityLib.Root:GetPropertyChangedSignal("Anchored"):Once(function()
+                                EntityLib.Root.Anchored = false
                                 Con = nil
                             end)
                             local Result = OldStart(self, ...)
@@ -574,11 +567,11 @@ Run(function() -- Movement
     end)
 
     Run(function() -- NoStagger
-        local NoStagger, Old
+        local NoStagger
 
         local function CharacterAdded(Char)
             Char.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
-            NoStagger:Clean(Char.Humanoid:GetPropertyChangedSignal("FloorMaterial"):Connect(function()
+            NoStagger:Clean(Char.Humanoid:GetPropertyChangedSignal('FloorMaterial'):Connect(function()
                 if Char.Humanoid.FloorMaterial ~= Enum.Material.Air then
                     Char.Humanoid:ChangeState(Enum.HumanoidStateType.Running)
                 end
@@ -586,12 +579,18 @@ Run(function() -- Movement
         end
 
         NoStagger = Movement:CreateModule({
-            Name = "NoStagger",
-            Info = "Removes the stagger after falling from a height",
-            Enabled = function()
-                NoStagger:Clean(CharacterLib.Events.LocalAdded:Connect(CharacterAdded))
-                if CharacterLib.Alive then
-                    CharacterAdded(CharacterLib)
+            Name = 'NoStagger',
+            Info = 'Removes the stagger after falling from a height',
+            Function = function(Enabled)
+                if Enabled then
+                    NoStagger:Clean(EntityLib.Events.LocalAdded:Connect(CharacterAdded))
+                    if EntityLib.Alive then
+                        CharacterAdded(EntityLib)
+                    end
+                else
+                    if EntityLib.Alive then
+                        EntityLib.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+                    end
                 end
             end
         })
@@ -601,19 +600,19 @@ Run(function() -- Movement
         local VaultSpeed, Speed, Percentage, UsePercentage
 
         local function UpdateWindowVaultSpeed()
-            local PlayerValues = Plr:FindFirstChild("PlayerValues")
+            local PlayerValues = Plr:FindFirstChild('PlayerValues')
             if PlayerValues and VaultSpeed.Enabled then
                 if UsePercentage.Enabled then
-                    PlayerValues:SetAttribute("WindowVaultSpeed", math.max(PlayerValues:GetAttribute("WindowVaultSpeed"), 1) * (Percentage.Value / 100))
+                    PlayerValues:SetAttribute('WindowVaultSpeed', math.max(PlayerValues:GetAttribute('WindowVaultSpeed'), 1) * (Percentage.Value / 100))
                 else
-                    PlayerValues:SetAttribute("WindowVaultSpeed", Speed.Value)
+                    PlayerValues:SetAttribute('WindowVaultSpeed', Speed.Value)
                 end
             end
         end
 
         VaultSpeed = Movement:CreateModule({
-            Name = "Vault Speed",
-            Info = "The speed at which you vault windows. Doesn't effect pallet vault speed.",
+            Name = 'Vault Speed',
+            Info = 'The speed at which you vault windows.\nDoesn\'t effect pallet vault speed',
             Enabled = function()
                 local PlayerValues = Plr:FindFirstChild("PlayerValues")
                 if not PlayerValues then return end
@@ -623,15 +622,15 @@ Run(function() -- Movement
         })
 
         Speed = VaultSpeed:CreateSlider({
-            Name = "Window Vault Speed",
+            Name = 'Window Vault Speed',
             Default = 1,
             Min = 0,
             Max = 5,
             Function = UpdateWindowVaultSpeed
         })
 
-        VaultSpeed:CreateToggle({
-            Name = "Use Percentage",
+        UsePercentage = VaultSpeed:CreateToggle({
+            Name = 'Use Percentage',
             Function = function(Enabled)
                 Percentage:SetVisible(Enabled)
                 UpdateWindowVaultSpeed()
@@ -639,25 +638,33 @@ Run(function() -- Movement
         })
 
         Percentage = VaultSpeed:CreateSlider({
-            Name = "Percentage",
+            Name = 'Percentage',
             Default = 110,
             Min = 0,
             Max = 200,
-            Suffix = "%",
+            Suffix = '%',
             Function = UpdateWindowVaultSpeed
         })
     end)
 end)
 
 Run(function() -- World
-    Run(function() -- RepairGenerators
+    Run(function() -- RepairAllGenerators
         World:CreateModule({
-            Name = "RepairGenerators",
+            Name = "RepairAllGenerators",
             Info = "Starts repairing all generators at once",
             Function = function(Enabled)
                 local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
                 local NewProperty = RemoteEvents:FindFirstChild("NewPropertie")
-                if not NewProperty then Notify({Text = "Failed to find event"}) return end
+                if not NewProperty then
+                    Notify({
+                        Text = 'Failed to find event',
+                        Duration = 5,
+                        Type = 'Error'
+                    })
+
+                    return
+                end
                 for i, Generator in workspace:GetChildren() do
                     if Generator.Name:find("Generator") then
                         for _, Workspot in Generator.Workspots:GetChildren() do
@@ -1207,10 +1214,10 @@ Run(function() -- Player
     end)
 
     Run(function() -- AutoDeadHard
-        local AutoDeadHard, UseWhenDowned, DeadHardConnection
+        local AutoDeadHard, UseWhenDowned
 
         local function LocalAdded()
-            AutoDeadHard:Clean(CharacterLib.Root:GetAttributeChangedSignal("Blood"):Connect(function()
+            AutoDeadHard:Clean(EntityLib.Root:GetAttributeChangedSignal("Blood"):Connect(function()
                 ReplicatedStorage.RemoteEvents.Perk_Event:FireServer("Dodge")
             end))
         end
@@ -1220,17 +1227,17 @@ Run(function() -- Player
             Info = "Automatically uses dead hard after you get hit",
             Enabled = function()
                 if UseWhenDowned.Enabled then
-                    if CharacterLib.Alive then
+                    if EntityLib.Alive then
                         LocalAdded()
                     end
-                    AutoDeadHard:Clean(CharacterLib.Events.LocalAdded:Connect(LocalAdded))
+                    AutoDeadHard:Clean(EntityLib.Events.LocalAdded:Connect(LocalAdded))
                 else
                     local HealthState
                     repeat
                         HealthState = SafeRef(Plr, {'Backpack', 'Scripts', 'values', 'HealthState'})
                         task.wait()
                     until HealthState or not AutoDeadHard.Enabled
-                    if AutoDeadHard.Enabled then
+                    if AutoDeadHard.Enabled and HealthState then
                         if HealthState.Value == 0 then
                             ReplicatedStorage.RemoteEvents.Perk_Event:FireServer("Dodge")
                         end
@@ -1254,69 +1261,6 @@ Run(function() -- Player
         })
     end)
 
-    Run(function() -- InfiniteUnbreakable
-        local InfiniteUnbreakable
-
-        InfiniteUnbreakable = PlayerCategory:CreateModule({
-            Name = "Infinite Unbreakable",
-            Info = "Allows you to fully recover from the dying state",
-            Function = function(Enabled)
-                if Enabled then
-                    local Backpack = Plr:FindFirstChildOfClass("Backpack")
-                    local Scripts = Backpack and Backpack:FindFirstChild("Scripts")
-                    local Values = Scripts and Scripts:FindFirstChild("values")
-                    local Recovering = Values and Values:FindFirstChild("Recovering")
-                    if Recovering then
-                        InfiniteUnbreakable:Clean(Recovering:GetPropertyChangedSignal("Value"):Connect(function()
-                            local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
-                            local ClientToServer = RemoteEvents and RemoteEvents:FindFirstChild("ClientToServer")
-                            local HealingEvent = ClientToServer and ClientToServer:FindFirstChild("HealingEvent")
-                            if HealingEvent then
-                                HealingEvent:FireServer(Plr.Name,  "Start", {
-                                    IsMending = false,
-                                    SelfHealing = true,
-                                    RestrictValues = false,
-                                    SumKeys = {
-                                        "SelfCare",
-                                    },
-                                })
-                                local HealProgress = Values and Values:FindFirstChild("HealProgress")
-                                local PlayerGui = Plr:FindFirstChildOfClass("PlayerGui")
-                                local Hud = PlayerGui and PlayerGui:FindFirstChild("HUD")
-                                local ControlsDisplay = Hud and Hud:FindFirstChild("Controls_Display")
-                                local ProgressInfo = ControlsDisplay and ControlsDisplay:FindFirstChild("Progress_Info")
-                                local ProgressHolder = ProgressInfo and ProgressInfo:FindFirstChild("Progress_Holder")
-                                local ProgressBackground = ProgressHolder and ProgressHolder:FindFirstChild("Progress")
-                                local ProgressBar = ProgressBackground and ProgressBackground:FindFirstChild("Bar")
-                                local ActionText = ProgressInfo and ProgressInfo:FindFirstChild("ActionText")
-
-                                while UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
-                                    if InfiniteUnbreakable.Disabled then break end
-                                    RunService.PreRender:Wait()
-                                    if ProgressInfo and ActionText and ProgressBar then
-                                        ProgressInfo.Visible = true
-                                        ActionText.Text = "Recovering"
-                                        ProgressBar.Size = UDim2.fromScale(HealProgress.Value / 1000, 1)
-                                    end
-                                end
-
-                                ProgressInfo.Visible = false
-                                HealingEvent:FireServer(Plr.Name, "Stop")
-                            end
-                        end))
-                    end
-                else
-                    local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
-                    local ClientToServer = RemoteEvents and RemoteEvents:FindFirstChild("ClientToServer")
-                    local HealingEvent = ClientToServer and ClientToServer:FindFirstChild("HealingEvent")
-                    if HealingEvent then
-                        HealingEvent:FireServer(Plr.Name, "Stop")
-                    end
-                end
-            end,
-        })
-    end)
-
     Run(function() -- SelfCare
         local SelfCare, BypassHealRestrictions
 
@@ -1327,7 +1271,7 @@ Run(function() -- Player
                 if Enabled then
                     SelfCare:Clean(UIS.InputBegan:Connect(function(Input)
                         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) and Input.UserInputType == Enum.UserInputType.MouseButton1 then
-                            if not CharacterLib.Alive then return end
+                            if not EntityLib.Alive then return end
                             local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
                             local ClientToServer = RemoteEvents and RemoteEvents:FindFirstChild("ClientToServer")
                             local HealingEvent = ClientToServer and ClientToServer:FindFirstChild("HealingEvent")
@@ -1352,7 +1296,7 @@ Run(function() -- Player
                                 local ProgressBackground = ProgressHolder and ProgressHolder:FindFirstChild("Progress")
                                 local ProgressBar = ProgressBackground and ProgressBackground:FindFirstChild("Bar")
                                 local ActionText = ProgressInfo and ProgressInfo:FindFirstChild("ActionText")
-                                local Animator: Animator = CharacterLib.Humanoid:FindFirstChildOfClass("Animator") or CharacterLib.Humanoid
+                                local Animator: Animator = EntityLib.Humanoid:FindFirstChildOfClass("Animator") or EntityLib.Humanoid
 
                                 local Animation = Instance.new("Animation")
                                 Animation.AnimationId = "rbxassetid://102741425499863"
@@ -1402,8 +1346,8 @@ Run(function() -- Player
         PlayerCategory:CreateModule({
             Name = "InfiniteBlinks",
             Function = function(Enabled)
-                if not CharacterLib.Alive then return end
-                local Blink = CharacterLib.Character:FindFirstChild("Blink")
+                if not EntityLib.Alive then return end
+                local Blink = EntityLib.Character:FindFirstChild("Blink")
                 local PowerValues = Blink and Blink:FindFirstChild("PowerValues")
                 local PowerRemote = PowerValues and PowerValues:FindFirstChild("PowerRemote")
                 if PowerRemote then
@@ -1548,34 +1492,6 @@ Run(function() -- Player
 end)
 
 Run(function() -- Other
-    Run(function() -- AutoSkillCheck
-        local AutoSkillCheck, Old
-
-        AutoSkillCheck = Other:CreateModule({
-            Name = "AutoSkillCheck",
-            Info = "Automatically hits great skill checks.",
-            Enabled = function()
-                local SkillCheck = require(ReplicatedStorage.Modules.SkillCheck)
-                Old = SkillCheck.Hit
-                SkillCheck.Hit = function(self)
-                    local Sound = Instance.new("Sound")
-                    Sound.SoundId = "rbxassetid://1479888663"
-                    Sound.Volume = 1
-                    Sound.PlayOnRemove = true
-                    Sound.Parent = workspace
-                    Sound:Destroy()
-                    self.Run = false
-                    return "Great"
-                end
-                AutoSkillCheck:Clean(function()
-                    if Old then
-                        SkillCheck.Hit = Old
-                        Old = nil
-                    end
-                end)
-            end,
-        })
-    end)
     Run(function() -- NoDeadHardLimit
         local NoDeadHardLimit
 
@@ -1583,10 +1499,10 @@ Run(function() -- Other
             Name = "NoDeadHardLimit",
             Info = "Removes the limit of using dead hard 3 times per match",
             Function = function(Enabled)
-                if CharacterLib.Alive then
-                    CharacterLib.Character:SetAttribute("DodgeUses", Enabled and 69420 or 3)
+                if EntityLib.Alive then
+                    EntityLib.Character:SetAttribute("DodgeUses", Enabled and 69420 or 3)
                 else
-                    Notify({Text = "Failed to set"})
+                    Notify({Text = "Failed to set", Duration = 4, Type = 'Error'})
                 end
             end
         })
@@ -1686,24 +1602,21 @@ Run(function() -- Other
     end)
 
     Run(function() -- PingSpoofer
-        local Ping, PingSpoofer, Old
+        local Ping, PingSpoofer
 
         PingSpoofer = Other:CreateModule({
-            Name = "PingSpoofer",
-            Info = "Spoofs your ping in the dead by roblox's tab",
-            Function = function()
-                local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
-                local PingRemote = RemoteEvents and RemoteEvents:FindFirstChild("PingTimes")
-                if PingRemote then
-                    Old = PingRemote.OnClientInvoke
-                    PingRemote.OnClientInvoke = function()
+            Name = 'PingSpoofer',
+            Info = 'Spoofs your ping in the dead by roblox tab',
+            Function = function(Enabled)
+                if Enabled then
+                    ReplicatedStorage.RemoteEvents.PingTimes.OnClientInvoke = function()
                         return Ping.Value / 2000
                     end
+                else
+                    ReplicatedStorage.RemoteEvents.PingTimes.OnClientInvoke = function()
+                        return Plr:GetNetworkPing()
+                    end
                 end
-                PingSpoofer:Clean(function()
-                    PingRemote.OnClientInvoke = Old
-                    Old = nil
-                end)
             end
         })
 
@@ -1712,39 +1625,6 @@ Run(function() -- Other
             Default = 50,
             Min = 0,
             Max = 200,
-        })
-    end)
-
-    Run(function() -- SetNurseBlinks
-        local SetNurseBlinks, Blinks
-
-        local function UpdateBlinks()
-            local Killer = GetKiller()
-            local PowerRemote = Killer and SafeRef(Killer.Character, {"Blink", "PowerValues", "PowerRemote"})
-            if PowerRemote then
-                PowerRemote:FireServer("SetValue", "Blinks", math.floor(Blinks.Value))
-            elseif Killer then
-                Notify({Text = "The killer isn't currently playing nurse.", Duration = 5, Type = "Warning"})
-            end
-        end
-
-        SetNurseBlinks = Other:CreateModule({
-            Name = "NurseBlinks",
-            Info = "Sets the blinks of the nurse. Doesn't matter if you're the killer or not.",
-            Enabled = function()
-                repeat
-                    UpdateBlinks()
-                    task.wait(0.2)
-                until not SetNurseBlinks.Enabled
-            end
-        })
-
-        Blinks = SetNurseBlinks:CreateSlider({
-            Name = "Blinks",
-            Default = 2,
-            Min = 0,
-            Max = 10,
-            Function = UpdateBlinks
         })
     end)
     
@@ -1763,16 +1643,17 @@ Run(function() -- Other
         end
 
         AntiBamboozle = Other:CreateModule({
-            Name = "AntiBamboozle",
-            Info = "Prevents windows from getting blocked by bamboozle.",
+            Name = 'AntiBamboozle',
+            Info = 'Prevents windows from getting blocked by bamboozle',
             Enabled = function()
                 for i, v in workspace:GetChildren() do
-                    if v.Name:find("Window") then
+                    if v.Name:find('Window') then
                         task.spawn(WindowAdded, v)
                     end
                 end
+
                 AntiBamboozle:Clean(workspace.ChildAdded:Connect(function(Child)
-                    if Child.Name:find("Window") then
+                    if Child.Name:find('Window') then
                         WindowAdded(Child)
                     end
                 end))
@@ -1784,25 +1665,26 @@ Run(function() -- Other
         local AntiBlock
 
         local function WindowAdded(Window)
-            local Panel = Window:WaitForChild("Panel", 5)
-            local Blocked = Panel and Panel:WaitForChild("Blocked", 5)
+            local Panel = Window:WaitForChild('Panel', 5)
+            local Blocked = Panel and Panel:WaitForChild('Blocked', 5)
             if AntiBlock.Enabled and Blocked then
                 Blocked.Value = false
-                AntiBlock:Clean(Blocked:GetPropertyChangedSignal("Value"):Connect(function()
+                AntiBlock:Clean(Blocked:GetPropertyChangedSignal('Value'):Connect(function()
                     Blocked.Value = false
                 end))
             end
         end
 
         AntiBlock = Other:CreateModule({
-            Name = "AntiBlock",
-            Info = "Prevents windows from getting blocked after the third vault.",
+            Name = 'AntiBlock',
+            Info = 'Prevents windows from getting blocked after the third vault',
             Enabled = function()
                 for i, v in workspace:GetChildren() do
                     if v.Name:find("Window") then
                         task.spawn(WindowAdded, v)
                     end
                 end
+
                 AntiBlock:Clean(workspace.ChildAdded:Connect(function(Child)
                     if Child.Name:find("Window") then
                         WindowAdded(Child)
@@ -1813,87 +1695,69 @@ Run(function() -- Other
     end)
 
     Run(function() -- Pick Up Player
-        local PickUpPlayer, TextBox, Player
+        local PickUpPlayer, Player
 
         PickUpPlayer = Other:CreateButton({
-            Name = "Pick Up Player",
-            Info = "Picks up the specified player",
+            Name = 'Pick Up Player',
+            Info = 'Picks up the specified player',
             Function = function()
                 if Player then
-                    ReplicatedStorage.RemoteEvents.Server_Event:FireServer("Carry", "Pickup_Default", Player)
+                    ReplicatedStorage.RemoteEvents.Server_Event:FireServer('Carry', 'Pickup_Default', Player)
                 end
             end
         })
 
-        TextBox = PickUpPlayer:CreateTextBox({
-            Name = "Player",
-            PlaceholderText = "[Player Name]",
-            Function = function(Text)
-                local FoundPlayer = FindPlayer(Text)
-                if FoundPlayer then
-                    Player = FoundPlayer
-                    Notify({Text = `Set player to {Player.DisplayName} (@{Player.Name})`, Duration = 5})
-                else
-                    Notify({Text = "Failed to find player", Duration = 5, Type = "Error"})
-                end
+        PickUpPlayer:CreatePlayerTextBox({
+            Name = 'Player',
+            PlaceholderText = '[Player Name]',
+            Function = function(NewPlayer)
+                Player = NewPlayer
             end
         })
     end)
 
     Run(function() -- Drop Player
-        local DropPlayer, TextBox, Player
+        local DropPlayer, Player
 
         DropPlayer = Other:CreateButton({
             Name = "Drop Player",
             Info = "Drops the specified player",
             Function = function()
                 if Player then
-                    ReplicatedStorage.RemoteEvents.Server_Event:FireServer("Carry", "Drop_Default", nil)
+                    ReplicatedStorage.RemoteEvents.Server_Event:FireServer('Carry', 'Drop_Default', nil)
                 end
             end
         })
 
-        TextBox = DropPlayer:CreateTextBox({
+        DropPlayer:CreatePlayerTextBox({
             Name = "Player",
             PlaceholderText = "[Player Name]",
-            Function = function(Text)
-                local FoundPlayer = FindPlayer(Text)
-                if FoundPlayer then
-                    Player = FoundPlayer
-                    Notify({Text = `Set player to {Player.DisplayName} (@{Player.Name})`, Duration = 5})
-                else
-                    Notify({Text = "Failed to find player", Duration = 5, Type = "Error"})
-                end
+            Function = function(NewPlayer)
+                Player = NewPlayer
             end
         })
     end)
 
     Run(function() -- Bring Player
-        local BringPlayer, TextBox, Player
+        local BringPlayer, Player
 
         BringPlayer = Other:CreateButton({
             Name = "Bring Player",
             Info = "Brings the specified player",
             Function = function()
                 if Player then
-                    ReplicatedStorage.RemoteEvents.Server_Event:FireServer("Carry", "Pickup_Default", Player)
+                    ReplicatedStorage.RemoteEvents.Server_Event:FireServer('Carry', 'Pickup_Default', Player)
                     task.wait(1)
-                    ReplicatedStorage.RemoteEvents.Server_Event:FireServer("Carry", "Drop_Default", nil)
+                    ReplicatedStorage.RemoteEvents.Server_Event:FireServer('Carry', 'Drop_Default', nil)
                 end
             end
         })
 
-        TextBox = BringPlayer:CreateTextBox({
+        BringPlayer:CreatePlayerTextBox({
             Name = "Player",
             PlaceholderText = "[Player Name]",
-            Function = function(Text)
-                local FoundPlayer = FindPlayer(Text)
-                if FoundPlayer then
-                    Player = FoundPlayer
-                    Notify({Text = `Set player to {Player.DisplayName} (@{Player.Name})`, Duration = 5})
-                else
-                    Notify({Text = "Failed to find player", Duration = 5, Type = "Error"})
-                end
+            Function = function(NewPlayer)
+                Player = NewPlayer
             end
         })
     end)
@@ -1903,12 +1767,12 @@ Run(function() -- Animations
     Run(function() -- EmotePlayer
         local EmotePlayer, PointKeybind, FollowKeybind, CaliforniaGirlsKeybind, GetEmKeybind, ThinkKeybind, BowShotKeybind, Track, OverwriteOtherKeys, ActionName
         local AnimationIds = {
-            Point = {AnimationId = "rbxassetid://16520476888"},
-            Follow = {AnimationId = "rbxassetid://16520472961", Keybind = FollowKeybind},
-            CaliforniaGirls = {AnimationId = "rbxassetid://10258272240", Loop = true, Keybind = CaliforniaGirlsKeybind},
-            GetEm = {AnimationId = "rbxassetid://15919624781", Loop = true, Keybind = GetEmKeybind},
-            Think = {AnimationId = "rbxassetid://121839807114786", Keybind = ThinkKeybind},
-            BowShot = {AnimationId = "rbxassetid://131833227843012", Keybind = BowShotKeybind},
+            Point = {AnimationId = 'rbxassetid://16520476888'},
+            Follow = {AnimationId = 'rbxassetid://16520472961', Keybind = FollowKeybind},
+            CaliforniaGirls = {AnimationId = 'rbxassetid://10258272240', Loop = true, Keybind = CaliforniaGirlsKeybind},
+            GetEm = {AnimationId = 'rbxassetid://15919624781', Loop = true, Keybind = GetEmKeybind},
+            Think = {AnimationId = 'rbxassetid://121839807114786', Keybind = ThinkKeybind},
+            BowShot = {AnimationId = 'rbxassetid://131833227843012', Keybind = BowShotKeybind},
         }
 
         local Playing = {}
@@ -1922,9 +1786,9 @@ Run(function() -- Animations
                     Playing[Emote]:Stop()
                     Playing[Emote] = nil
                 end
-                local Animation = Instance.new("Animation")
+                local Animation = Instance.new('Animation')
                 Animation.AnimationId = AnimationIds[Emote].AnimationId
-                local Animator = CharacterLib.Humanoid:FindFirstChildOfClass("Animator") or CharacterLib.Humanoid
+                local Animator = EntityLib.Humanoid:FindFirstChildOfClass('Animator') or EntityLib.Humanoid
                 Track = Animator:LoadAnimation(Animation)
                 Track.Priority = Enum.AnimationPriority.Action4
                 Track.Looped = AnimationIds[Emote].Loop
@@ -1933,18 +1797,10 @@ Run(function() -- Animations
             end
         end
 
-        local function RandomString()
-            local Array = {}
-            for i = 1, 10 do
-                Array[i] = string.char(math.random(32, 126))
-            end
-            return table.concat(Array)
-        end
-
         local function KeyPress(_, State, Input)
             if State == Enum.UserInputState.End or UIS:GetFocusedTextBox() then return end
             for i, v in AnimationIds do
-                if Input.KeyCode.Name == v.Keybind.Keybind then
+                if v.Keybind:Check(Input) then
                     PlayAnimation(i)
                 end
             end
@@ -1952,14 +1808,14 @@ Run(function() -- Animations
         
         local function UpdateAction()
             local BindedKeys = {
-                Keys[PointKeybind.Keybind],
-                Keys[FollowKeybind.Keybind],
-                Keys[CaliforniaGirlsKeybind.Keybind],
-                Keys[GetEmKeybind.Keybind],
-                Keys[ThinkKeybind.Keybind],
-                Keys[BowShotKeybind.Keybind]
+                Enum.KeyCode:FromName(PointKeybind.Keybind),
+                Enum.KeyCode:FromName(FollowKeybind.Keybind),
+                Enum.KeyCode:FromName(CaliforniaGirlsKeybind.Keybind),
+                Enum.KeyCode:FromName(GetEmKeybind.Keybind),
+                Enum.KeyCode:FromName(ThinkKeybind.Keybind),
+                Enum.KeyCode:FromName(BowShotKeybind.Keybind)
             }
-            ContextActionService:BindActionAtPriority(`EmotePlayer{ActionName}`, KeyPress, false, 69420, unpack(Keys))
+            ContextActionService:BindActionAtPriority(`EmotePlayer{ActionName}`, KeyPress, false, 69420, table.unpack(BindedKeys))
         end
 
         EmotePlayer = Animations:CreateModule({
@@ -1968,11 +1824,11 @@ Run(function() -- Animations
             Function = function(Enabled)
                 if Enabled then
                     if OverwriteOtherKeys.Enabled then
-                        ActionName = RandomString()
+                        ActionName = HttpService:GenerateGUID(false)
                         UpdateAction()
                     else
                         EmotePlayer:Clean(UIS.InputBegan:Connect(function(Input)
-                            KeyPress(nil, Input.UserInputState, Input)
+                            KeyPress(nil, Enum.UserInputState.Begin, Input)
                         end))
                     end
                 else

@@ -6,20 +6,21 @@ end
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 local Drawing = TidalWave.Libraries.Drawing
 
-local Players: Players = GetService("Players")
-local TweenService: TweenService = GetService("TweenService")
-local RunService: RunService = GetService("RunService")
-local ReplicatedStorage: ReplicatedStorage = GetService("ReplicatedStorage")
-local UIS: UserInputService = GetService("UserInputService")
+local Players: Players = GetService('Players')
+local RunService: RunService = GetService('RunService')
+local ReplicatedStorage: ReplicatedStorage = GetService('ReplicatedStorage')
+local UIS: UserInputService = GetService('UserInputService')
 
-local Plr = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local Plr: Player = Players.LocalPlayer
+local Camera: Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass('Camera')
 
 local Combat = Categories.Combat
 local Other = Categories.Other
+
+local require = table.find({'Xeno', 'Solara'}, ({identifyexecutor()})[1]) == nil and require or nil
 
 local function Notify(Properties)
     TidalWave:Notify(Properties)
@@ -27,10 +28,10 @@ end
 
 local function NotifyPoopSploit(Function)
     Notify({
-        Title = "Poop Sploit",
-        Text = `{TidalWave.Executor or "Your Executor"} doesn't support "{Function}"`,
-        Type = "Error",
-        Duration = 4,
+        Title = 'Poop Sploit',
+        Text = `Your executor doesn't support '{Function}'`,
+        Type = 'Error',
+        Duration = 5,
     })
 end
 
@@ -40,13 +41,13 @@ end
 
 Run(function()
     Run(function() -- SilentAimbot
-        local SilentAimbot, WallCheck, Part, Fov, Circle, CircleObject, OutlineObject, OutlineColor, FillColor, OutlineTransparency, FillTransparency, Thickness, Old
+        local SilentAimbot, WallCheck, Part, Fov, Circle, CircleObject, OutlineColor, FillColor, Thickness, Old
 
         local function CreateCircle()
-            CircleObject = Drawing.new("Circle")
+            CircleObject = Drawing.new('Circle')
             CircleObject.Radius = Fov.Value
-            CircleObject.FillTransparency = FillTransparency.Value
-            CircleObject.OutlineTransparency = OutlineTransparency.Value
+            CircleObject.FillTransparency = FillColor.Transparency
+            CircleObject.OutlineTransparency = OutlineColor.Transparency
             CircleObject.FillColor = FillColor.Color
             CircleObject.OutlineColor = OutlineColor.Color
             CircleObject.Thickness = Thickness.Value
@@ -65,8 +66,8 @@ Run(function()
         local function UpdateCircle()
             if CircleObject then
                 CircleObject.Radius = Fov.Value
-                CircleObject.FillTransparency = FillTransparency.Value
-                CircleObject.OutlineTransparency = OutlineTransparency.Value
+                CircleObject.FillTransparency = FillColor.Transparency
+                CircleObject.OutlineTransparency = OutlineColor.Transparency
                 CircleObject.FillColor = FillColor.Color
                 CircleObject.OutlineColor = OutlineColor.Color
                 CircleObject.Thickness = Thickness.Value
@@ -77,16 +78,18 @@ Run(function()
             Name = "SilentAimbot",
             Tooltip = "Silently adjusts your aim towards the nearest player.",
             Enabled = function()
+                if not require then NotifyPoopSploit('require') return end
+
                 local RaycastModule = require(ReplicatedStorage.Events.Modules.RaycastModule)
                 Old = RaycastModule.Raycast
 
                 RaycastModule.Raycast = function(Origin, Direction, Filter)
-                    local Character = CharacterLib:GetCharacterWithinMouse({
+                    local Character = EntityLib:GetClosestEntityWithinMouse({
                         Part = Part.Value,
                         Range = Fov.Value,
                         Origin = Camera.CFrame.Position,
                         WallCheck = WallCheck.Enabled,
-                        NPCS = true,
+                        NPCs = true,
                         Players = true
                     })
 
@@ -118,17 +121,17 @@ Run(function()
         })
 
         WallCheck = SilentAimbot:CreateToggle({
-            Name = "Wall Check",
-            Default = false
+            Name = 'Wall Check',
+            Info = 'Ignores players behind walls'
         })
 
         Part = SilentAimbot:CreateDropdown({
-            Name = "Part",
-            List = {"Head", "Root"}
+            Name = 'Part',
+            List = {'Head', 'Root'}
         })
 
         Fov = SilentAimbot:CreateSlider({
-            Name = "Fov",
+            Name = 'Fov',
             Default = 100,
             Min = 0,
             Max = 1000,
@@ -136,21 +139,18 @@ Run(function()
         })
 
         Circle = SilentAimbot:CreateToggle({
-            Name = "Circle",
+            Name = 'Circle',
             Function = function(Enabled)
                 if Enabled and SilentAimbot.Enabled then
                     CreateCircle()
                 else
                     RemoveCircle()
                 end
-                for i, v in {Fov, Thickness, OutlineTransparency, FillTransparency, OutlineColor, FillColor} do
-                    v:SetVisible(Enabled)
-                end
             end
         })
 
         Thickness = SilentAimbot:CreateSlider({
-            Name = "Thickness",
+            Name = 'Thickness',
             Default = 1,
             Min = 1,
             Max = 10,
@@ -158,37 +158,14 @@ Run(function()
             Function = UpdateCircle
         })
 
-        OutlineTransparency = SilentAimbot:CreateSlider({
-            Name = "Outline Transparency",
-            Default = 0,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
+        OutlineColor = Circle:CreateColorPicker({
+            Name = 'Outline Color',
             Function = UpdateCircle
         })
 
-        FillTransparency = SilentAimbot:CreateSlider({
-            Name = "Fill Transparency",
-            Default = 1,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        OutlineColor = SilentAimbot:CreateColorPicker({
-            Name = "Outline Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        FillColor = SilentAimbot:CreateColorPicker({
-            Name = "Fill Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
+        FillColor = Circle:CreateColorPicker({
+            Name = 'Fill Color',
+            Transparency = 1,
             Function = UpdateCircle
         })
     end)

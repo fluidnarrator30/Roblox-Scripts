@@ -6,7 +6,7 @@ end
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 local Drawing = TidalWave.Libraries.Drawing
 local ObjectFunctions = TidalWave.Libraries.ObjectFunctions
 
@@ -21,16 +21,18 @@ local Camera = workspace.CurrentCamera
 local Combat = Categories.Combat
 local Other = Categories.Other
 
+local require = table.find({'Solara', 'Xeno'}, ({identifyexecutor()})[1]) == nil and require or nil
+
 local function Notify(Properties)
     TidalWave:Notify(Properties)
 end
 
 local function NotifyPoopSploit(Function)
     Notify({
-        Title = "Poop Sploit",
-        Text = `{TidalWave.Executor or "Your Executor"} doesn't support "{Function}"`,
-        Type = "Error",
-        Duration = 4,
+        Title = 'Poop Sploit',
+        Text = `Your executor doesn't support '{Function}'`,
+        Type = 'Error',
+        Duration = 5,
     })
 end
 
@@ -44,19 +46,30 @@ end
 
 Run(function() -- Combat
     Run(function() -- SilentAimbot
-        local SilentAimbot, WallCheck, Part, Fov, Circle, CircleObject, OutlineObject, OutlineColor, FillColor, OutlineTransparency, FillTransparency, Thickness, Old
+        local SilentAimbot, WallCheck, Part, Fov, Circle, CircleObject, OutlineColor, FillColor, Thickness, Old
 
         local function CreateCircle()
-            CircleObject = Drawing.new("Circle")
+            CircleObject = Drawing.new('Circle')
             CircleObject.Radius = Fov.Value
-            CircleObject.FillTransparency = FillTransparency.Value
-            CircleObject.OutlineTransparency = OutlineTransparency.Value
+            CircleObject.FillTransparency = FillColor.Transparency
+            CircleObject.OutlineTransparency = OutlineColor.Transparency
             CircleObject.FillColor = FillColor.Color
             CircleObject.OutlineColor = OutlineColor.Color
             CircleObject.Thickness = Thickness.Value
             CircleObject.Position = UIS:GetMouseLocation()
             CircleObject.Visible = SilentAimbot.Enabled
             CircleObject.Parent = TidalWave.Gui
+        end
+
+        local function UpdateCircle()
+            if CircleObject then
+                CircleObject.Radius = Fov.Value
+                CircleObject.FillTransparency = FillColor.Transparency
+                CircleObject.OutlineTransparency = OutlineColor.Transparency
+                CircleObject.FillColor = FillColor.Color
+                CircleObject.OutlineColor = OutlineColor.Color
+                CircleObject.Thickness = Thickness.Value
+            end
         end
 
         local function RemoveCircle()
@@ -67,14 +80,16 @@ Run(function() -- Combat
         end
 
         SilentAimbot = Combat:CreateModule({
-            Name = "SilentAimbot",
-            Info = "Silently Adjusts your aim towards the nearest player",
+            Name = 'SilentAimbot',
+            Info = 'Silently Adjusts your aim towards the nearest player',
             Enabled = function()
+                if not require then NotifyPoopSploit('require') return end
+                
                 local BaseWeapon = require(ReplicatedStorage.WeaponsSystem.Libraries.BaseWeapon)
                 Old = BaseWeapon.fire
 
                 BaseWeapon.fire = function(Tab, Origin, Direction, a)
-                    local Character = CharacterLib:GetCharacterWithinMouse({
+                    local Character = EntityLib:GetClosestEntityWithinMouse({
                         Part = Part.Value,
                         Range = Fov.Value,
                         WallCheck = WallCheck.Enabled,
@@ -92,11 +107,13 @@ Run(function() -- Combat
                 if Circle.Enabled and not CircleObject then
                     CreateCircle()
                 end
+
                 SilentAimbot:Clean(RunService.PreRender:Connect(function()
                     if CircleObject then
                         CircleObject.Position = UIS:GetMouseLocation()
                     end
                 end))
+
                 SilentAimbot:Clean(function()
                     RemoveCircle()
                     if Old then
@@ -108,28 +125,17 @@ Run(function() -- Combat
         })
 
         WallCheck = SilentAimbot:CreateToggle({
-            Name = "WallCheck",
-            Info = "Ignores players behind walls",
+            Name = 'WallCheck',
+            Info = 'Ignores players behind walls',
         })
 
         Part = SilentAimbot:CreateDropdown({
-            Name = "Part",
-            List = {"Head", "Root"}
+            Name = 'Part',
+            List = {'Head', 'Root'}
         })
 
-        local function UpdateCircle()
-            if CircleObject then
-                CircleObject.Radius = Fov.Value
-                CircleObject.FillTransparency = FillTransparency.Value
-                CircleObject.OutlineTransparency = OutlineTransparency.Value
-                CircleObject.FillColor = FillColor.Color
-                CircleObject.OutlineColor = OutlineColor.Color
-                CircleObject.Thickness = Thickness.Value
-            end
-        end
-
         Fov = SilentAimbot:CreateSlider({
-            Name = "Fov",
+            Name = 'Fov',
             Default = 100,
             Min = 0,
             Max = 1000,
@@ -137,59 +143,32 @@ Run(function() -- Combat
         })
 
         Circle = SilentAimbot:CreateToggle({
-            Name = "Circle",
+            Name = 'Circle',
             Function = function(Enabled)
                 if Enabled and SilentAimbot.Enabled then
                     CreateCircle()
                 else
                     RemoveCircle()
                 end
-                for _, v in {Thickness, OutlineTransparency, FillTransparency, OutlineColor, FillColor} do
-                    v:SetVisible(Enabled)
-                end
             end
         })
 
-        Thickness = SilentAimbot:CreateSlider({
-            Name = "Thickness",
+        Thickness = Circle:CreateSlider({
+            Name = 'Thickness',
             Default = 1,
             Min = 1,
             Max = 10,
-            Visible = false,
             Function = UpdateCircle
         })
 
-        OutlineTransparency = SilentAimbot:CreateSlider({
-            Name = "Outline Transparency",
-            Default = 0,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
+        OutlineColor = Circle:CreateColorPicker({
+            Name = 'Outline Color',
             Function = UpdateCircle
         })
 
-        FillTransparency = SilentAimbot:CreateSlider({
-            Name = "Fill Transparency",
-            Default = 1,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        OutlineColor = SilentAimbot:CreateColorPicker({
-            Name = "Outline Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        FillColor = SilentAimbot:CreateColorPicker({
-            Name = "Fill Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
+        FillColor = Circle:CreateColorPicker({
+            Name = 'Fill Color',
+            Transparency = 1,
             Function = UpdateCircle
         })
     end)
@@ -210,7 +189,7 @@ Run(function() -- Combat
 
         local function LocalAdded()
             LocalRemoved()
-            Con = UnlimitedAmmo:Clean(CharacterLib.Character.ChildAdded:Connect(function(Child)
+            Con = UnlimitedAmmo:Clean(EntityLib.Character.ChildAdded:Connect(function(Child)
                 if Child:IsA('Tool') then
                     local TimeOut = os.clock() + 5
                     local Ammo
@@ -239,9 +218,9 @@ Run(function() -- Combat
             Info = 'Gives you unlimited ammo.',
             Function = function(Enabled)
                 if Enabled then
-                    UnlimitedAmmo:Clean(CharacterLib.Events.LocalAdded:Connect(LocalAdded))
-                    UnlimitedAmmo:Clean(CharacterLib.Events.LocalRemoved:Connect(LocalRemoved))
-                    if CharacterLib.Alive then
+                    UnlimitedAmmo:Clean(EntityLib.Events.LocalAdded:Connect(LocalAdded))
+                    UnlimitedAmmo:Clean(EntityLib.Events.LocalRemoved:Connect(LocalRemoved))
+                    if EntityLib.Alive then
                         LocalAdded()
                     end
                 else
@@ -274,7 +253,7 @@ Run(function() -- Combat
 
         local function LocalAdded()
             LocalRemoved()
-            Con = FullAuto:Clean(CharacterLib.Character.ChildAdded:Connect(function(Child)
+            Con = FullAuto:Clean(EntityLib.Character.ChildAdded:Connect(function(Child)
                 if Child:IsA('Tool') then
                     local TimeOut = os.clock() + 5
                     local Configuration
@@ -328,9 +307,9 @@ Run(function() -- Combat
             Info = 'ay ay no full auto in the building',
             Function = function(Enabled)
                 if Enabled then
-                    FullAuto:Clean(CharacterLib.Events.LocalAdded:Connect(LocalAdded))
-                    FullAuto:Clean(CharacterLib.Events.LocalRemoved:Connect(LocalRemoved))
-                    if CharacterLib.Alive then
+                    FullAuto:Clean(EntityLib.Events.LocalAdded:Connect(LocalAdded))
+                    FullAuto:Clean(EntityLib.Events.LocalRemoved:Connect(LocalRemoved))
+                    if EntityLib.Alive then
                         LocalAdded()
                     end
                 else
@@ -372,7 +351,7 @@ Run(function() -- Other
 
         local function LocalAdded()
             LocalRemoved()
-            Con = NoRecoil:Clean(CharacterLib.Character.ChildAdded:Connect(function(Child)
+            Con = NoRecoil:Clean(EntityLib.Character.ChildAdded:Connect(function(Child)
                 if Child:IsA('Tool') then
                     local TimeOut = os.clock() + 5
                     local RecoilMin, RecoilMax
@@ -412,9 +391,9 @@ Run(function() -- Other
             Info = 'Removes gun recoil.',
             Function = function(Enabled)
                 if Enabled then
-                    NoRecoil:Clean(CharacterLib.Events.LocalAdded:Connect(LocalAdded))
-                    NoRecoil:Clean(CharacterLib.Events.LocalRemoved:Connect(LocalRemoved))
-                    if CharacterLib.Alive then
+                    NoRecoil:Clean(EntityLib.Events.LocalAdded:Connect(LocalAdded))
+                    NoRecoil:Clean(EntityLib.Events.LocalRemoved:Connect(LocalRemoved))
+                    if EntityLib.Alive then
                         LocalAdded()
                     end
                 else

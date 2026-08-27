@@ -6,7 +6,7 @@ end
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
-local CharacterLib = TidalWave.Libraries.CharacterLib
+local EntityLib = TidalWave.Libraries.EntityLib
 local Drawing = TidalWave.Libraries.Drawing
 
 local Players: Players = GetService("Players")
@@ -29,30 +29,34 @@ end
 
 local function NotifyPoopSploit(Function)
     Notify({
-        Title = "Poop Sploit",
-        Text = `{TidalWave.Executor or "Your Executor"} doesn't support "{Function}"`,
-        Type = "Error",
-        Duration = 4,
+        Title = 'Poop Sploit',
+        Text = `Your executor doesn't support {Function}`,
+        Type = 'Error',
+        Duration = 5,
     })
 end
 
-for i, v in {workspace["Zombie Storage"], workspace.BossFolder} do
+local function Run(f)
+    f()
+end
+
+for i, v in {workspace['Zombie Storage'], workspace.BossFolder} do
     TidalWave:Clean(v.ChildAdded:Connect(function(Child)
-        CharacterLib:AddCharacter(Child)
+        EntityLib:AddEntity(Child)
     end))
 
     TidalWave:Clean(v.ChildRemoved:Connect(function(Child)
-        CharacterLib:RemoveCharacter(Child)
+        EntityLib:RemoveEntity(Child)
     end))
 
     for i2, v2 in v:GetChildren() do
-        CharacterLib:AddCharacter(v2)
+        EntityLib:AddEntity(v2)
     end
 end
 
-do
-    do
-        local SilentAimbot, WallCheck, Part, Fov, Circle, CircleObject, OutlineObject, OutlineColor, FillColor, OutlineTransparency, FillTransparency, Thickness
+Run(function() -- Combat
+    Run(function() -- SilentAimbot
+        local SilentAimbot, WallCheck, Part, Fov, Circle, CircleObject, OutlineColor, FillColor, Thickness, Old
 
         local function UpdateCirclePosition()
             if CircleObject then
@@ -61,10 +65,10 @@ do
         end
 
         local function CreateCircle()
-            CircleObject = Drawing.new("Circle")
+            CircleObject = Drawing.new('Circle')
             CircleObject.Radius = Fov.Value
-            CircleObject.FillTransparency = FillTransparency.Value
-            CircleObject.OutlineTransparency = OutlineTransparency.Value
+            CircleObject.FillTransparency = FillColor.Transparency
+            CircleObject.OutlineTransparency = OutlineColor.Transparency
             CircleObject.FillColor = FillColor.Color
             CircleObject.OutlineColor = OutlineColor.Color
             CircleObject.Thickness = Thickness.Value
@@ -83,8 +87,8 @@ do
         local function UpdateCircle()
             if CircleObject then
                 CircleObject.Radius = Fov.Value
-                CircleObject.FillTransparency = FillTransparency.Value
-                CircleObject.OutlineTransparency = OutlineTransparency.Value
+                CircleObject.FillTransparency = FillColor.Transparency
+                CircleObject.OutlineTransparency = OutlineColor.Transparency
                 CircleObject.FillColor = FillColor.Color
                 CircleObject.OutlineColor = OutlineColor.Color
                 CircleObject.Thickness = Thickness.Value
@@ -106,19 +110,22 @@ do
 
                 Old = hookfunction(Ray.new, function(Origin, Direction)
                     local CallingScript = getcallingscript()
-                    if CallingScript and CallingScript.Name ~= "GunController" or not CallingScript then return Old(Origin, Direction) end
-                    local Character, Vector = CharacterLib:GetCharacterWithinMouse({
-                        Part = Part.Value,
-                        Range = Fov.Value,
-                        WallCheck = WallCheck.Enabled,
-                        Origin = Origin,
-                        NPCS = true,
-                        Players = false
-                    })
 
-                    if Character then
-                        local CoolerRay = Camera:ViewportPointToRay(Vector.X, Vector.Y)
-                        return Old(CoolerRay.Origin, CoolerRay.Direction * 5000)
+                    if CallingScript and CallingScript.Name == 'GunController' then
+                        local Character, Vector = EntityLib:GetClosestEntityWithinMouse({
+                            Part = Part.Value,
+                            Range = Fov.Value,
+                            WallCheck = WallCheck.Enabled,
+                            Origin = Origin,
+                            NPCs = true,
+                            Players = false
+                        })
+
+                        if Character then
+                            local CoolRay = Camera:ViewportPointToRay(Vector.X, Vector.Y)
+
+                            return Old(CoolRay.Origin, CoolRay.Direction * 5000)
+                        end
                     end
 
                     return Old(Origin, Direction)
@@ -137,17 +144,17 @@ do
         })
 
         WallCheck = SilentAimbot:CreateToggle({
-            Name = "WallCheck",
-            Info = "Ignores zombies behind walls",
+            Name = 'WallCheck',
+            Info = 'Ignores zombies behind walls',
         })
 
         Part = SilentAimbot:CreateDropdown({
-            Name = "Part",
-            List = {"Head", "Root"}
+            Name = 'Part',
+            List = {'Head', 'Root'}
         })
 
         Fov = SilentAimbot:CreateSlider({
-            Name = "Fov",
+            Name = 'Fov',
             Default = 100,
             Min = 0,
             Max = 1000,
@@ -155,21 +162,18 @@ do
         })
 
         Circle = SilentAimbot:CreateToggle({
-            Name = "Circle",
+            Name = 'Circle',
             Function = function(Enabled)
                 if Enabled and SilentAimbot.Enabled then
                     CreateCircle()
                 else
                     RemoveCircle()
                 end
-                for i, v in {Fov, Thickness, OutlineTransparency, FillTransparency, OutlineColor, FillColor} do
-                    v:SetVisible(Enabled)
-                end
             end
         })
 
-        Thickness = SilentAimbot:CreateSlider({
-            Name = "Thickness",
+        Thickness = Circle:CreateSlider({
+            Name = 'Thickness',
             Default = 1,
             Min = 1,
             Max = 10,
@@ -177,38 +181,15 @@ do
             Function = UpdateCircle
         })
 
-        OutlineTransparency = SilentAimbot:CreateSlider({
-            Name = "Outline Transparency",
-            Default = 0,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        FillTransparency = SilentAimbot:CreateSlider({
-            Name = "Fill Transparency",
-            Default = 1,
-            Min = 0,
-            Max = 1,
-            Decimal = 100,
-            Visible = false,
-            Function = UpdateCircle
-        })
-
-        OutlineColor = SilentAimbot:CreateColorPicker({
+        OutlineColor = Circle:CreateColorPicker({
             Name = "Outline Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
             Function = UpdateCircle
         })
 
-        FillColor = SilentAimbot:CreateColorPicker({
+        FillColor = Circle:CreateColorPicker({
             Name = "Fill Color",
-            Default = Color3.fromRGB(255, 255, 255),
-            Visible = false,
+            Transparency = 1,
             Function = UpdateCircle
         })
-    end
-end
+    end)
+end)

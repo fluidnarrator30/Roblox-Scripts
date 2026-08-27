@@ -4,7 +4,7 @@ local function GetService(Service)
     return cloneref(game:GetService(Service))
 end
 
-local Players: Players = GetService("Players")
+local Players: Players = GetService('Players')
 
 local Plr = Players.LocalPlayer
 
@@ -193,34 +193,34 @@ function Methods:FindFirstChildWhichIsAWithName(Obj, Class, Name)
 end
 
 local Keywords = {
-	["nil"] = true,
-	["for"] = true,
-	["do"] = true,
-	["while"] = true,
-	["true"] = true,
-	["false"] = true,
-	["repeat"] = true,
-	["until"] = true,
-	["and"] = true,
-	["or"] = true,
-	["not"] = true,
-	["local"] = true,
-	["function"] = true,
-	["if"] = true,
-	["then"] = true,
-	["return"] = true,
-	["end"] = true,
-	["break"] = true,
-	["continue"] = true,
-	["else"] = true,
-	["elseif"] = true,
-	["in"] = true,
-	["self"] = true,
+	['nil'] = true,
+	['for'] = true,
+	['do'] = true,
+	['while'] = true,
+	['true'] = true,
+	['false'] = true,
+	['repeat'] = true,
+	['until'] = true,
+	['and'] = true,
+	['or'] = true,
+	['not'] = true,
+	['local'] = true,
+	['function'] = true,
+	['if'] = true,
+	['then'] = true,
+	['return'] = true,
+	['end'] = true,
+	['break'] = true,
+	['continue'] = true,
+	['else'] = true,
+	['elseif'] = true,
+	['in'] = true,
+	['self'] = true,
 }
 
 function Methods:GetFullName(Obj)
-    if typeof(Obj) ~= "Instance" then return nil end
-    if Obj == game then return "game" end
+    if typeof(Obj) ~= 'Instance' then return nil end
+    if Obj == game then return 'game' end
     if Obj.Parent == nil then return nil end
 
     local Parts = {}
@@ -235,15 +235,15 @@ function Methods:GetFullName(Obj)
     while Obj.Parent ~= game do
         local Name
         if Obj == Plr then
-            Name = ".LocalPlayer"
-        elseif Obj.ClassName == "Model" and Characters[Obj] then
+            Name = '.LocalPlayer'
+        elseif Obj.ClassName == 'Model' and Characters[Obj] then
             local Length = #Parts
-            Parts[Length + 1] = {Name = ".Character"}
+            Parts[Length + 1] = {Name = '.Character'}
             Parts[Length + 2] = {Name = `.{Characters[Obj].Name}`}
             Obj = Players
             break
         else
-            Name = Obj.Name:match("^[%a_][%w_]*$") and not Keywords[Obj.Name] and `.{Obj.Name}` or `["{Obj.Name}"]`
+            Name = Obj.Name:match('^[%a_][%w_]*$') and not Keywords[Obj.Name] and `.{Obj.Name}` or `['{Obj.Name}']`
         end
 
         Parts[#Parts + 1] = {
@@ -253,13 +253,13 @@ function Methods:GetFullName(Obj)
 
         Obj = Obj.Parent
     end
-
-    local FullName = Obj == workspace and "workspace" or `game:GetService("{Obj.ClassName}")`
+    
+    local FullName = Obj == workspace and 'workspace' or `game:GetService('{Obj.ClassName}')`
 
     for i = #Parts, 1, -1 do
         local Part = Parts[i]
         if Part.DebugId then
-            FullName = `(function(Obj, Id) for _, v in Obj:GetChildren() do if v:GetDebugId() == Id then return v end end end)({FullName}, "{Part.DebugId}")`
+            FullName = `(function(Obj, Id)\n\tfor _, v in Obj:GetChildren() do\n\t\tif v:GetDebugId() == Id then\n\t\t\treturn v\n\t\tend\n\tend\nend)({FullName}, '{Part.DebugId}' --[[{Part.Name:sub(2)}]])`
         else
             FullName ..= Part.Name
         end
@@ -281,55 +281,6 @@ function Methods:SafeRef(Obj, Path)
     end
 
     return Obj
-end
-
-local function GetObjectFromId(Obj, Id)
-    for _, v in Obj:GetChildren() do
-        if v:GetDebugId() == Id then
-            return v
-        end
-    end
-end
-
-function Methods:LoadPath(Path)
-    local Obj
-	if Path:match('%aorkspace') then
-		Obj = workspace
-		local Error
-		Path = Path:gsub('%aorkspace', function(Match)
-			if Match:sub(1, 1):lower() == 'w' then
-				return ''
-			end
-			Error = `Expected 'workspace' got {Match}`
-		end, 1)
-		if Error then
-			return Error
-		end
-	else
-		local ServiceName = Path:match('game:GetService%(["\'`]+(%w+)["\'`]+%)')
-		Path = Path:gsub('game:GetService%(["\'`]+(%w+)["\'`]+%)', '', 1)
-		Obj = game:GetService(ServiceName)
-	end
-
-	while #Path > 0 do
-		local Match = Path:match('%.([%a_][%w_]*)') or Path:match('%[[\'"`]+%]')
-		if not Match then break end
-		local OldObj = Obj
-		Obj = Obj:FindFirstChild(Match)
-		if not Obj then return `{Match} is not a valid member of '{OldObj:GetFullName()}'` end
-		Path = Path:gsub(Match, '', 1)
-	end
-
-	while #Path > 0 do
-		local Id = Path:match('%(function%(Obj, Id%) for _, v in Obj:GetChildren%(%) do if v:GetDebugId%(%) == Id then return v end end end%)%(., "(%d_%d+)"%)')
-		if not Id then break end
-		local OldObj = Obj
-		Obj = GetObjectFromId(Obj, Id)
-		if not Obj then return `Failed to find Object with debug Id: {Id}` end
-		Path = Path:gsub('%(function%(Obj, Id%) for _, v in Obj:GetChildren%(%) do if v:GetDebugId%(%) == Id then return v end end end%)%([%a_][%w_]*, "%d_%d+")', '', 1)
-	end
-
-	return Obj
 end
 
 return Methods
