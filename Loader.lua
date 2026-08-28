@@ -16,7 +16,7 @@ local Players: Players = GetService('Players')
 local TweenService: TweenService = GetService('TweenService')
 
 local Plr = Players.LocalPlayer
-const IsStudio = RunService:IsStudio()
+local IsStudio = RunService:IsStudio()
 
 local gethui = gethui or function() return (CoreGui and CoreGui:FindFirstChild('RobloxGui')) or CoreGui or Plr:FindFirstChildOfClass('PlayerGui') end
 local writefile, makefolder, isfolder, isfile, readfile, loadfile, listfiles, delfile = writefile, makefolder, isfolder or function(s) return false end, isfile or function(s) return false end, readfile, loadfile, listfiles, delfile
@@ -68,53 +68,6 @@ local function AddCorner(Obj, CornerRadius)
     Corner.CornerRadius = CornerRadius
     Corner.Parent = Obj
 end
-
-LoadingScreen = shared.TidalWaveLoader
-LoadingScreen.Name = 'TidalWave Loader'
-LoadingScreen.DisplayOrder = 69420
-LoadingScreen.IgnoreGuiInset = true
-LoadingScreen.ResetOnSpawn = false
-LoadingScreen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-LoadingScreen.Parent = gethui()
-
-local LoadingFrame = Instance.new('Frame')
-LoadingFrame.Size = UDim2.fromOffset(300, 150)
-LoadingFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
-LoadingFrame.BorderSizePixel = 0
-LoadingFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-LoadingFrame.Parent = LoadingScreen
-AddCorner(LoadingFrame, UDim.new(0, 6))
-
-local ImageLabel = Instance.new('ImageLabel')
-ImageLabel.Size = UDim2.fromOffset(125, 72)
-ImageLabel.BackgroundTransparency = 1
-ImageLabel.Position = UDim2.fromOffset(87, 10)
-ImageLabel.Image = DownloadFile('TidalWave/Assets/LoadingIcon.webp', getcustomasset)
-ImageLabel.Parent = LoadingFrame
-
-local LoadingInfo = Instance.new('TextLabel')
-LoadingInfo.Size = UDim2.fromOffset(290, 35)
-LoadingInfo.BackgroundTransparency = 1
-LoadingInfo.Position = UDim2.fromOffset(5, 96)
-LoadingInfo.TextSize = 20
-LoadingInfo.TextColor3 = Color3.fromRGB(255, 255, 255)
-LoadingInfo.Text = ''
-LoadingInfo.FontFace = Font.fromEnum(Enum.Font.Gotham)
-LoadingInfo.Parent = LoadingFrame
-
-local ProgressBar = Instance.new('CanvasGroup')
-ProgressBar.Size = UDim2.fromOffset(290, 5)
-ProgressBar.Position = UDim2.new(0, 5, 0, 140)
-ProgressBar.BorderSizePixel = 0
-ProgressBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-ProgressBar.Parent = LoadingFrame
-AddCorner(ProgressBar, UDim.new(0, 6))
-
-local ProgressBarFill = Instance.new('Frame')
-ProgressBarFill.Size = UDim2.fromScale(0, 1)
-ProgressBarFill.BorderSizePixel = 0
-ProgressBarFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-ProgressBarFill.Parent = ProgressBar
 
 for _, v in {'TidalWave', 'TidalWave/Games', 'TidalWave/Guis', 'TidalWave/Libraries', 'TidalWave/Profiles', 'TidalWave/Assets'} do
     if not isfolder(v) then
@@ -171,6 +124,53 @@ if not IsStudio then
         end
     end
 end
+
+LoadingScreen = shared.TidalWaveLoader
+LoadingScreen.Name = 'TidalWave Loader'
+LoadingScreen.DisplayOrder = 69420
+LoadingScreen.IgnoreGuiInset = true
+LoadingScreen.ResetOnSpawn = false
+LoadingScreen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+LoadingScreen.Parent = gethui()
+
+local LoadingFrame = Instance.new('Frame')
+LoadingFrame.Size = UDim2.fromOffset(300, 150)
+LoadingFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
+LoadingFrame.BorderSizePixel = 0
+LoadingFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+LoadingFrame.Parent = LoadingScreen
+AddCorner(LoadingFrame, UDim.new(0, 6))
+
+local ImageLabel = Instance.new('ImageLabel')
+ImageLabel.Size = UDim2.fromOffset(125, 72)
+ImageLabel.BackgroundTransparency = 1
+ImageLabel.Position = UDim2.fromOffset(87, 10)
+ImageLabel.Image = DownloadFile('TidalWave/Assets/LoadingIcon.webp', getcustomasset)
+ImageLabel.Parent = LoadingFrame
+
+local LoadingInfo = Instance.new('TextLabel')
+LoadingInfo.Size = UDim2.fromOffset(290, 35)
+LoadingInfo.BackgroundTransparency = 1
+LoadingInfo.Position = UDim2.fromOffset(5, 96)
+LoadingInfo.TextSize = 20
+LoadingInfo.TextColor3 = Color3.fromRGB(255, 255, 255)
+LoadingInfo.Text = ''
+LoadingInfo.FontFace = Font.fromEnum(Enum.Font.Gotham)
+LoadingInfo.Parent = LoadingFrame
+
+local ProgressBar = Instance.new('CanvasGroup')
+ProgressBar.Size = UDim2.fromOffset(290, 5)
+ProgressBar.Position = UDim2.new(0, 5, 0, 140)
+ProgressBar.BorderSizePixel = 0
+ProgressBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ProgressBar.Parent = LoadingFrame
+AddCorner(ProgressBar, UDim.new(0, 6))
+
+local ProgressBarFill = Instance.new('Frame')
+ProgressBarFill.Size = UDim2.fromScale(0, 1)
+ProgressBarFill.BorderSizePixel = 0
+ProgressBarFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ProgressBarFill.Parent = ProgressBar
 
 local CurrentLoaded = 0
 local AmountToLoad = 10
