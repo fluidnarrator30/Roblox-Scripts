@@ -4,19 +4,18 @@ local function GetService(Service)
     return cloneref(game:GetService(Service))
 end
 
-const Lighting: Lighting = GetService('Lighting')
-const Players: Players = GetService('Players')
-const RunService: RunService = GetService('RunService')
-const TeleportService: TeleportService = GetService('TeleportService')
-const TextService: TextService = GetService('TextService')
-const UIS: UserInputService = GetService('UserInputService')
-const HttpService: HttpService = GetService('HttpService')
-const ProximityPromptService: ProximityPromptService = GetService('ProximityPromptService')
-const ContextActionService: ContextActionService = GetService('ContextActionService')
-const GuiService: GuiService = GetService('GuiService')
-const VirtualUser: VirtualUser = GetService('VirtualUser')
-const TweenService: TweenService = GetService('TweenService')
-const Stats: Stats = GetService('Stats')
+local Lighting: Lighting = GetService('Lighting')
+local Players: Players = GetService('Players')
+local RunService: RunService = GetService('RunService')
+local TeleportService: TeleportService = GetService('TeleportService')
+local TextService: TextService = GetService('TextService')
+local UIS: UserInputService = GetService('UserInputService')
+local HttpService: HttpService = GetService('HttpService')
+local ProximityPromptService: ProximityPromptService = GetService('ProximityPromptService')
+local ContextActionService: ContextActionService = GetService('ContextActionService')
+local GuiService: GuiService = GetService('GuiService')
+local TweenService: TweenService = GetService('TweenService')
+local Stats: Stats = GetService('Stats')
 
 local TidalWave = shared.TidalWave
 local Categories = TidalWave.Categories
@@ -37,7 +36,7 @@ local Animations = Categories.Animations
 local Scripts = Categories.Scripts
 local Server = Categories.Server
 
-const IsStudio = RunService:IsStudio()
+local IsStudio = RunService:IsStudio()
 
 local Plr: Player = Players.LocalPlayer
 local Camera: Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass('Camera')
@@ -158,6 +157,7 @@ local function CanClick(): boolean
     if UIS:GetFocusedTextBox() then return false end
     if TidalWave.Gui.ScaledGui.Gui.TopBar.Visible then return false end
     if iswindowactive and not iswindowactive() then return false end
+
     return true
 end
 
@@ -226,6 +226,7 @@ local function UpdateFriction()
 		table.clear(OldPhysicalProperties)
 	end
 end
+
 
 local TargetStrafeVector
 
@@ -783,7 +784,7 @@ Run(function() -- Combat
     Run(function() -- KillAura
         local KillAura, UsePlayers, UseNPCs, WallCheck, MaxTargets, CPS, SwingRange, AttackRange, AngleSlider, RequireMouseDown, Lunge
         local BoxSwingColor, BoxAttackColor, ParticleTexture, ParticleSize, ParticleColor1, ParticleColor2, Face
-        local AnimationEnabled, Animation, AnimationSpeed, ReverseAnimation, UpdateRate
+        local AnimationEnabled, Animation, AnimationSpeed, UpdateRate
 
         local OldC0, Tween, StopTween, Attacking
 
@@ -858,8 +859,7 @@ Run(function() -- Combat
                                         end
 
                                         for i, Keyframe in AuraAnimations[Animation.Value] do
-                                            local cf = ReverseAnimation.Enabled and Keyframe.CFrame:Inverse() or Keyframe.CFrame
-                                            Tween = TweenService:Create(ViewmodelMotor, TweenInfo.new(First and 0.1 or Keyframe.Duration / AnimationSpeed.Value, Enum.EasingStyle.Linear), {C0 = OldC0 * cf})
+                                            Tween = TweenService:Create(ViewmodelMotor, TweenInfo.new(First and 0.1 or Keyframe.Duration / AnimationSpeed.Value, Enum.EasingStyle.Linear), {C0 = OldC0 * Keyframe.CFrame})
                                             First = nil
                                             Tween:Play()
                                             Tween.Completed:Wait()
@@ -953,9 +953,11 @@ Run(function() -- Combat
                             Particle.Position = Tab and Tab.Entity.Root.Position or vector.huge
                             Particle.Parent = Tab and Camera or nil
                         end
+
+                        local Target = Attacked[1]
         
-                        if Face.Enabled and Attacked[1] then
-                            local TargetPosition = Attacked[1].Character.Root.Position
+                        if Face.Enabled and Target then
+                            local TargetPosition = Target.Entity.Root.Position
                             local ModdedPosition = vector.create(TargetPosition.X, EntityLib.Root.Position.Y, TargetPosition.Z)
                             EntityLib.Root.CFrame = CFrame.lookAt(EntityLib.Root.Position, ModdedPosition)
                         end
@@ -1206,10 +1208,6 @@ Run(function() -- Combat
             Min = 0,
             Max = 2,
             Decimal = 100
-        })
-
-        ReverseAnimation = AnimationEnabled:CreateToggle({
-            Name = 'Reverse Animation'
         })
 
         UpdateRate = AnimationEnabled:CreateSlider({
@@ -2078,7 +2076,7 @@ Run(function() -- Movement
         local Params = RaycastParams.new()
         Params.RespectCanCollide = true
 
-        const AirCheckVector = vector.create(0, -70, 0)
+        local AirCheckVector = vector.create(0, -70, 0)
 
         local Module, Old, Fly, Angle, LastEntity
 
@@ -6328,9 +6326,11 @@ Run(function() -- Visuals
 
     Run(function() -- Viewmodel
         local Viewmodel, X, Y, Z, RotationX, RotationY, RotationZ
-        local OldTool, Handle
-
-        local cf, Rotation
+        
+        local OldTool, Handle, ViewmodelHandle
+        local VisualOffset, VisualRotation
+        local Offset = CFrame.new(2.6, -1, -4)
+        local Rotation = CFrame.Angles(math.rad(90), 0, 0)
 
         local function ToolAdded(Tool)
             local TimeOut = os.clock() + 3
@@ -6342,16 +6342,24 @@ Run(function() -- Visuals
 
             OldTool = Tool
 
-            ViewmodelTool = Instance.fromExisting(Handle)
+            ViewmodelTool = Instance.new('Part')
             ViewmodelTool.CanCollide = false
             ViewmodelTool.Massless = true
             ViewmodelTool.Anchored = true
+            ViewmodelTool.Size = vector.one
+            ViewmodelTool.Transparency = 1
             ViewmodelTool.Parent = Camera
+
+            ViewmodelHandle = Instance.fromExisting(Handle)
+            ViewmodelHandle.CanCollide = false
+            ViewmodelHandle.Massless = true
+            ViewmodelHandle.Anchored = true
+            ViewmodelHandle.Parent = ViewmodelTool
 
             local Mesh = Handle:FindFirstChildWhichIsA('DataModelMesh')
 
             if Mesh then
-                Instance.fromExisting(Mesh).Parent = ViewmodelTool
+                Instance.fromExisting(Mesh).Parent = ViewmodelHandle
             end
 
             Handle.LocalTransparencyModifier = 1
@@ -6404,9 +6412,10 @@ Run(function() -- Visuals
                     Viewmodel:Clean(EntityLib.Events.LocalRemoved:Connect(LocalRemoved))
                     Viewmodel:Clean(RunService.PreRender:Connect(function()
                         if ViewmodelTool then
-                            ViewmodelTool.CFrame = (Camera.CFrame * cf * Rotation) * ViewmodelMotor.C0
+                            ViewmodelTool.CFrame = (Camera.CFrame * Offset * Rotation) * ViewmodelMotor.C0
+                            ViewmodelHandle.CFrame = ViewmodelTool.CFrame * VisualOffset * VisualRotation
                             local ThirdPerson = vector.magnitude(Camera.CFrame.Position - Camera.Focus.Position) > 0.6
-                            ViewmodelTool.LocalTransparencyModifier = ThirdPerson and 1 or 0
+                            ViewmodelHandle.LocalTransparencyModifier = ThirdPerson and 1 or 0
                             Handle.LocalTransparencyModifier = ThirdPerson and 0 or 1
                         end
                     end))
@@ -6431,12 +6440,12 @@ Run(function() -- Visuals
         })
 
         local function UpdateCF()
-            cf = CFrame.new(X.Value, Y.Value, Z.Value)
+            VisualOffset = CFrame.new(X.Value, Y.Value, Z.Value)
         end
 
         X = Viewmodel:CreateSlider({
             Name = 'X',
-            Default = 2.6,
+            Default = 0,
             Min = -5,
             Max = 5,
             Decimal = 100,
@@ -6445,7 +6454,7 @@ Run(function() -- Visuals
 
         Y = Viewmodel:CreateSlider({
             Name = 'Y',
-            Default = -1,
+            Default = 0,
             Min = -5,
             Max = 5,
             Decimal = 100,
@@ -6454,7 +6463,7 @@ Run(function() -- Visuals
 
         Z = Viewmodel:CreateSlider({
             Name = 'Z',
-            Default = -4,
+            Default = 0,
             Min = -10,
             Max = 0,
             Decimal = 100,
@@ -6462,19 +6471,19 @@ Run(function() -- Visuals
         })
 
         local function UpdateRotation()
-            Rotation = CFrame.Angles(math.rad(RotationX.Value), math.rad(RotationY.Value), math.rad(RotationZ.Value))
+            VisualRotation = CFrame.Angles(math.rad(RotationX.Value), math.rad(RotationY.Value), math.rad(RotationZ.Value))
         end
 
         RotationX = Viewmodel:CreateSlider({
-            Name = 'Rotation X',
-            Default = 90,
+            Name = 'X Rotation',
+            Default = 0,
             Min = -360,
             Max = 360,
             Function = UpdateRotation
         })
 
         RotationY = Viewmodel:CreateSlider({
-            Name = 'Rotation Y',
+            Name = 'Y Rotation',
             Default = 0,
             Min = -360,
             Max = 360,
@@ -6482,7 +6491,7 @@ Run(function() -- Visuals
         })
 
         RotationZ = Viewmodel:CreateSlider({
-            Name = 'Rotation Z',
+            Name = 'Z Rotation',
             Default = 0,
             Min = -360,
             Max = 360,
@@ -7317,6 +7326,8 @@ Run(function() -- Other
                         end
                     end)
                 else
+                    local VirtualUser: VirtualUser = GetService('VirtualUser')
+
                     AntiAFK:Clean(Plr.Idled:Connect(function()
                         VirtualUser:CaptureController()
                         VirtualUser:ClickButton2(Vector2.zero)
@@ -7423,22 +7434,61 @@ Run(function() -- Other
     end)
 
     Run(function() -- ShiftLock
-        local ShiftLock
+        local ShiftLock, Keybinds
 
         local Old
+        local OldKeys
+        local BoundKeys
+
+        local function GrabBoundKeys()
+            local PlayerScripts = Plr:FindFirstChildOfClass('PlayerScripts')
+            local PlayerModule = PlayerScripts and PlayerScripts:FindFirstChild('PlayerModule')
+            local CameraModule = PlayerModule and PlayerModule:FindFirstChild('CameraModule')
+            local MouseLockController = CameraModule and CameraModule:FindFirstChild('MouseLockController')
+            BoundKeys = MouseLockController and MouseLockController:FindFirstChild('BoundKeys')
+        end
 
         ShiftLock = Other:CreateModule({
             Name = 'ShiftLock',
             Info = 'Force enables the option to toggle shift lock',
             Function = function(Enabled)
                 if Enabled then
+                    if BoundKeys then
+                        OldKeys = BoundKeys.Value
+                        BoundKeys.Value = table.concat(Keybinds.Enabled, ',')
+                    end
                     Old = Plr.DevEnableMouseLock
                     Plr.DevEnableMouseLock = true
                 else
+                    if BoundKeys and OldKeys then
+                        BoundKeys.Value = OldKeys
+                        OldKeys = nil
+                    end
                     Plr.DevEnableMouseLock = Old
                     Old = nil
                 end
             end,
+        })
+
+        GrabBoundKeys()
+
+        Keybinds = ShiftLock:CreateTextList({
+            Name = 'Keybinds',
+            List = BoundKeys and BoundKeys.Value:split(',') or {'LeftShift', 'RightShift'},
+            Function = function(Enabled)
+                if ShiftLock.Enabled then
+                    if not BoundKeys then
+                        GrabBoundKeys()
+                    end
+
+                    if BoundKeys then
+                        if not OldKeys then
+                            OldKeys = BoundKeys.Value
+                        end
+                        BoundKeys.Value = table.concat(Enabled, ',')
+                    end
+                end
+            end
         })
     end)
 
