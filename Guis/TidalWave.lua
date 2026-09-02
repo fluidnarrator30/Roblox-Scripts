@@ -7945,14 +7945,6 @@ Gui:CreateCategory({
 	Name = 'Animations'
 })
 
-Gui:CreateCategory({
-	Name = 'Scripts'
-})
-
-Gui:CreateCategory({
-	Name = 'Server'
-})
-
 Run(function()
 	local Search = Instance.new("TextBox")
 	Search.Text = ""
