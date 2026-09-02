@@ -438,8 +438,10 @@ Run(function() -- Other
                     if EntityLib.Alive then
                         local CurrentWeapon = EntityLib.Character:GetAttribute('currentWeapon') or 'Primary'
                         CurrentWeapon = EntityLib.Character:GetAttribute(`{CurrentWeapon:lower()}Weapon`)
-                        Viewmodel.endViewmodel()
-                        Viewmodel.startViewmodel(CurrentWeapon)
+                        if CurrentWeapon then
+                            Viewmodel.endViewmodel()
+                            Viewmodel.startViewmodel(CurrentWeapon)
+                        end
                     end
 
                     NoRecoil:Clean(function()
